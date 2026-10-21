@@ -104,18 +104,17 @@ const QuestionEditor = memo(({
       onChange={(e, isExpanded) => onChangeExpansion(qIndex, isExpanded)}
       TransitionProps={{ unmountOnExit: true }}
       sx={{
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        bgcolor: 'rgba(0, 0, 0, 0.2)',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+        bgcolor: '#ffffff',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         borderRadius: '16px !important',
         '&:before': { display: 'none' },
         overflow: 'hidden',
-        backdropFilter: 'blur(8px)',
       }}
     >
       <AccordionSummary
-        expandIcon={<ExpandMoreIcon sx={{ color: '#111827' }} />}
-        sx={{ bgcolor: 'rgba(0,0,0,0.02)', '&.Mui-expanded': { borderBottom: '1px solid rgba(0,0,0,0.05)' } }}
+        expandIcon={<ExpandMoreIcon sx={{ color: 'var(--color-ink)' }} />}
+        sx={{ bgcolor: '#f9fafb', '&.Mui-expanded': { borderBottom: '1px solid rgba(0,0,0,0.08)' } }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', pr: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
@@ -215,7 +214,7 @@ const QuestionEditor = memo(({
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#111827', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Options & Scoring Matrix</Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {q.options.map((opt, optIndex) => (
-                <Box key={optIndex} sx={{ p: 3, bgcolor: 'rgba(0,0,0,0.15)', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
+                <Box key={optIndex} sx={{ p: 3, bgcolor: '#f9fafb', borderRadius: 3, border: '1px solid rgba(0,0,0,0.08)', position: 'relative' }}>
                   <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                     <TextField
                       label={`Option ${optIndex + 1}`}
@@ -743,6 +742,21 @@ const TestsManagement = () => {
   };
 
   const handleSubmit = async () => {
+    if (validationError) {
+      if (validationError.includes('Question') || validationError.includes('Option') || validationError.includes('question') || validationError.includes('category points')) {
+        setTabValue(1);
+        const match = validationError.match(/Question\s+(\d+)/i);
+        if (match) {
+          const qIdx = parseInt(match[1], 10) - 1;
+          setExpandedQuestions(prev => ({ ...prev, [qIdx]: true }));
+        }
+      } else if (validationError.includes('Section') || validationError.includes('section')) {
+        setTabValue(2);
+      } else {
+        setTabValue(0);
+      }
+      return;
+    }
     const isEditing = !!editingId;
     setSaving(true);
     try {
@@ -1122,31 +1136,30 @@ const TestsManagement = () => {
         </Table>
       </TableContainer>
 
-      {/* Cyber Dark Drawer */}
+      {/* Test Edit Drawer */}
       <Drawer
         anchor="right"
         open={openDrawer}
         onClose={handleClose}
         PaperProps={{
           sx: {
-            width: { xs: '100%', sm: 600, md: 760 },
+            width: { xs: '100%', sm: 640, md: 800 },
             bgcolor: '#ffffff',
-            backgroundImage: 'linear-gradient(180deg, #051c11 0%, #04140a 100%)',
-            color: '#111827',
-            borderLeft: '1px solid rgba(232, 184, 109, 0.15)',
+            color: 'var(--color-ink)',
+            borderLeft: '1px solid rgba(0, 0, 0, 0.08)',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '-20px 0 80px rgba(0,0,0,0.5)'
+            boxShadow: '-10px 0 50px rgba(0,0,0,0.1)'
           }
         }}
       >
         {/* Drawer Header */}
-        <Box sx={{ p: 3.5, pb: 0, bgcolor: 'rgba(5, 28, 17, 0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, zIndex: 10 }}>
+        <Box sx={{ p: 3.5, pb: 0, bgcolor: '#ffffff', borderBottom: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, zIndex: 10 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" sx={{ fontFamily: 'var(--font-display, "DM Serif Display", Georgia, serif)', color: '#111827', fontWeight: 700 }}>
+            <Typography variant="h5" sx={{ fontFamily: 'var(--font-display, "DM Serif Display", Georgia, serif)', color: 'var(--color-ink)', fontWeight: 700 }}>
               {editingId ? 'Edit Psychometric Test' : 'Create New Psychometric Test'}
             </Typography>
-            <IconButton onClick={handleClose} sx={{ color: '#6b7280' }}>
+            <IconButton onClick={handleClose} sx={{ color: '#6b7280', '&:hover': { bgcolor: '#f3f4f6' } }}>
               <CloseIcon />
             </IconButton>
           </Box>
@@ -1154,9 +1167,9 @@ const TestsManagement = () => {
             value={tabValue}
             onChange={(e, val) => setTabValue(val)}
             sx={{
-              '& .MuiTab-root': { color: '#6b7280', fontWeight: 600, textTransform: 'none', fontSize: '1rem', minWidth: 120 },
-              '& .Mui-selected': { color: '#e8b86d !important' },
-              '& .MuiTabs-indicator': { backgroundColor: '#e8b86d' }
+              '& .MuiTab-root': { color: '#6b7280', fontWeight: 600, textTransform: 'none', fontSize: '0.95rem', minWidth: 120 },
+              '& .Mui-selected': { color: 'var(--color-green) !important' },
+              '& .MuiTabs-indicator': { backgroundColor: 'var(--color-green)' }
             }}
           >
             <Tab label="General Info" />
@@ -1177,8 +1190,8 @@ const TestsManagement = () => {
             {tabValue === 0 && (
               <>
                 {/* General Info */}
-            <Box sx={{ p: 3, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(0,0,0,0.06)' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#111827', mb: 3 }}>General Test Information</Typography>
+            <Box sx={{ p: 3, bgcolor: '#f9fafb', borderRadius: 4, border: '1px solid rgba(0,0,0,0.08)' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-ink)', mb: 3 }}>General Test Information</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <TextField
                   label="Test Name"
@@ -1212,8 +1225,8 @@ const TestsManagement = () => {
             </Box>
 
             {/* Categories Section */}
-            <Box sx={{ p: 3, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(0,0,0,0.06)' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#111827', mb: 1 }}>Categories / Vectors</Typography>
+            <Box sx={{ p: 3, bgcolor: '#f9fafb', borderRadius: 4, border: '1px solid rgba(0,0,0,0.08)' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-ink)', mb: 1 }}>Categories / Vectors</Typography>
               <Typography variant="body2" sx={{ color: '#6b7280', mb: 3 }}>
                 Define the personality types, traits, or career paths this test measures.
               </Typography>
@@ -1223,7 +1236,7 @@ const TestsManagement = () => {
                     key={category}
                     label={category}
                     onDelete={() => handleDeleteCategory(category)}
-                    sx={{ bgcolor: 'rgba(16, 185, 129, 0.15)', color: '#111827', border: '1px solid rgba(232, 184, 109, 0.3)', fontWeight: 700, borderRadius: 2 }}
+                    sx={{ bgcolor: 'rgba(10, 79, 34, 0.08)', color: 'var(--color-green)', border: '1px solid rgba(10, 79, 34, 0.25)', fontWeight: 700, borderRadius: 2 }}
                   />
                 ))}
               </Box>
@@ -1239,8 +1252,8 @@ const TestsManagement = () => {
             </Box>
 
             {/* Test Settings Section */}
-            <Box sx={{ p: 3, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(0,0,0,0.06)' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#111827', mb: 1 }}>Test Settings</Typography>
+            <Box sx={{ p: 3, bgcolor: '#f9fafb', borderRadius: 4, border: '1px solid rgba(0,0,0,0.08)' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-ink)', mb: 1 }}>Test Settings</Typography>
               <Typography variant="body2" sx={{ color: '#6b7280', mb: 3 }}>
                 Configure time limits, scoring, and test behaviour.
               </Typography>
@@ -1258,7 +1271,7 @@ const TestsManagement = () => {
                     <MenuItem value="profile">Profile — points across categories (no right answers)</MenuItem>
                     <MenuItem value="scored">Scored — keyed answers, marked pass/fail</MenuItem>
                   </Select>
-                  <Typography variant="caption" sx={{ color: '#9ca3af', mt: 1 }}>
+                  <Typography variant="caption" sx={{ color: '#6b7280', mt: 1 }}>
                     {formMeta.scoringMode === 'scored'
                       ? 'Every question needs a correct answer. Results carry a score, a percentage and a pass/fail verdict.'
                       : 'Every option needs category points. Results rank the categories and recommend a direction.'}
@@ -1315,10 +1328,10 @@ const TestsManagement = () => {
                         checked={formMeta.shuffleQuestions}
                         onChange={(e) => setFormMeta(prev => ({ ...prev, shuffleQuestions: e.target.checked }))}
                         size="small"
-                        sx={{ color: '#6b7280', '&.Mui-checked': { color: '#111827' } }}
+                        sx={{ color: '#6b7280', '&.Mui-checked': { color: 'var(--color-green)' } }}
                       />
                     }
-                    label={<Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>Shuffle question order per attempt</Typography>}
+                    label={<Typography variant="body2" sx={{ color: 'var(--color-ink)' }}>Shuffle question order per attempt</Typography>}
                   />
                   <FormControlLabel
                     control={
@@ -1326,10 +1339,10 @@ const TestsManagement = () => {
                         checked={formMeta.showExplanations}
                         onChange={(e) => setFormMeta(prev => ({ ...prev, showExplanations: e.target.checked }))}
                         size="small"
-                        sx={{ color: '#6b7280', '&.Mui-checked': { color: '#111827' } }}
+                        sx={{ color: '#6b7280', '&.Mui-checked': { color: 'var(--color-green)' } }}
                       />
                     }
-                    label={<Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>Show explanations on the results screen</Typography>}
+                    label={<Typography variant="body2" sx={{ color: 'var(--color-ink)' }}>Show explanations on the results screen</Typography>}
                   />
                 </Box>
                 <Box sx={{ display: 'flex', gap: 4, pt: 1 }}>
@@ -1340,10 +1353,10 @@ const TestsManagement = () => {
                           checked={formMeta.allowRetake}
                           onChange={(e) => setFormMeta(prev => ({ ...prev, allowRetake: e.target.checked }))}
                           size="small"
-                          sx={{ color: '#6b7280', '&.Mui-checked': { color: '#111827' } }}
+                          sx={{ color: '#6b7280', '&.Mui-checked': { color: 'var(--color-green)' } }}
                         />
                       }
-                      label={<Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>Allow retakes</Typography>}
+                      label={<Typography variant="body2" sx={{ color: 'var(--color-ink)' }}>Allow retakes</Typography>}
                     />
                   </Box>
                   <TextField
@@ -1362,21 +1375,21 @@ const TestsManagement = () => {
             )}
 
             {tabValue === 1 && (
-              <Box sx={{ p: 3, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(0,0,0,0.06)' }}>
+              <Box sx={{ p: 3, bgcolor: '#f9fafb', borderRadius: 4, border: '1px solid rgba(0,0,0,0.08)' }}>
                 {/* Questions Section */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-ink)', display: 'flex', alignItems: 'center' }}>
                   Questions
-                  <Chip label={questions.length} size="small" sx={{ ml: 1, bgcolor: 'rgba(16, 185, 129, 0.2)', color: '#111827', fontWeight: 700 }} />
+                  <Chip label={questions.length} size="small" sx={{ ml: 1, bgcolor: 'rgba(10, 79, 34, 0.08)', color: 'var(--color-green)', fontWeight: 700 }} />
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Tooltip title="Expand All">
-                    <IconButton size="small" onClick={() => toggleAllQuestions(true)} sx={{ color: '#111827' }}>
+                    <IconButton size="small" onClick={() => toggleAllQuestions(true)} sx={{ color: 'var(--color-ink)' }}>
                       <UnfoldMoreIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Collapse All">
-                    <IconButton size="small" onClick={() => toggleAllQuestions(false)} sx={{ color: '#111827' }}>
+                    <IconButton size="small" onClick={() => toggleAllQuestions(false)} sx={{ color: 'var(--color-ink)' }}>
                       <UnfoldLessIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -1385,7 +1398,7 @@ const TestsManagement = () => {
                     variant="outlined"
                     startIcon={<AddIcon />}
                     onClick={handleAddQuestion}
-                    sx={{ borderRadius: '10px', borderColor: '#10b981', color: '#111827', '&:hover': { borderColor: '#10b981', bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
+                    sx={{ borderRadius: '10px', borderColor: 'var(--color-green)', color: 'var(--color-green)', '&:hover': { borderColor: 'var(--color-green)', bgcolor: 'rgba(10, 79, 34, 0.05)' } }}
                   >
                     Add Question
                   </Button>
@@ -1395,7 +1408,7 @@ const TestsManagement = () => {
               {/* Bank quality at a glance — difficulty spread, coverage and the
                   advisories that decide whether this test is worth taking. */}
               {questions.length > 0 && (
-                <Box sx={{ mb: 3, p: 2.5, bgcolor: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 3 }}>
+                <Box sx={{ mb: 3, p: 2.5, bgcolor: '#ffffff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 3, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                     {Object.entries(bankQuality.counts).map(([tier, count]) => (
                       <Chip
@@ -1491,15 +1504,15 @@ const TestsManagement = () => {
                     variant="outlined"
                     startIcon={<AddIcon />}
                     onClick={handleAddSection}
-                    sx={{ borderRadius: '10px', borderColor: '#10b981', color: '#111827', '&:hover': { borderColor: '#10b981', bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
+                    sx={{ borderRadius: '10px', borderColor: 'var(--color-green)', color: 'var(--color-green)', '&:hover': { borderColor: 'var(--color-green)', bgcolor: 'rgba(10, 79, 34, 0.05)' } }}
                   >
                     Add Section
                   </Button>
                 </Box>
 
                 {sections.length === 0 ? (
-                  <Box sx={{ p: 4, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.12)', textAlign: 'center' }}>
-                    <Typography variant="body2" sx={{ color: '#9ca3af' }}>
+                  <Box sx={{ p: 4, borderRadius: 3, bgcolor: '#ffffff', border: '1px dashed #d1d5db', textAlign: 'center' }}>
+                    <Typography variant="body2" sx={{ color: '#6b7280' }}>
                       No sections yet. Add a section to break the test into timed parts (e.g. "Verbal Reasoning — 10 min").
                     </Typography>
                   </Box>
@@ -1511,14 +1524,15 @@ const TestsManagement = () => {
                         onChange={(e, isExpanded) => setExpandedQuestions(prev => ({ ...prev, [`sec-${sIndex}`]: isExpanded }))}
                         TransitionProps={{ unmountOnExit: true }}
                         sx={{
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          bgcolor: 'rgba(0, 0, 0, 0.2)',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          bgcolor: '#ffffff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                           borderRadius: '16px !important',
                           '&:before': { display: 'none' },
                           overflow: 'hidden',
                         }}
                       >
-                        <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: '#111827' }} />} sx={{ bgcolor: 'rgba(0,0,0,0.02)', '&.Mui-expanded': { borderBottom: '1px solid rgba(0,0,0,0.05)' } }}>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: 'var(--color-ink)' }} />} sx={{ bgcolor: '#f9fafb', '&.Mui-expanded': { borderBottom: '1px solid rgba(0,0,0,0.08)' } }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', pr: 2 }}>
                             <Typography sx={{ fontWeight: 600, color: '#111827' }}>
                               {sec.title || `Section ${sIndex + 1}`} ({sec.questionIndices.length} questions)
@@ -1647,12 +1661,31 @@ const TestsManagement = () => {
         </Box>
 
         {/* Drawer Footer */}
-        <Box sx={{ p: 3, bgcolor: 'rgba(5, 28, 17, 0.95)', borderTop: '1px solid rgba(255,255,255,0.12)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', bottom: 0, zIndex: 10 }}>
+        <Box sx={{ p: 3, bgcolor: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', bottom: 0, zIndex: 10 }}>
           <Box>
             {!isValid && (
-              <Typography variant="body2" sx={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <WarningIcon fontSize="small" /> {validationError}
-              </Typography>
+              <Box
+                onClick={() => {
+                  if (validationError?.includes('Question') || validationError?.includes('Option') || validationError?.includes('category points')) {
+                    setTabValue(1);
+                    const match = validationError.match(/Question\s+(\d+)/i);
+                    if (match) {
+                      const qIdx = parseInt(match[1], 10) - 1;
+                      setExpandedQuestions(prev => ({ ...prev, [qIdx]: true }));
+                    }
+                  } else if (validationError?.includes('Section')) {
+                    setTabValue(2);
+                  } else {
+                    setTabValue(0);
+                  }
+                }}
+                sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1 }}
+              >
+                <WarningIcon sx={{ color: '#dc2626', fontSize: 18 }} />
+                <Typography variant="body2" sx={{ color: '#dc2626', fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}>
+                  {validationError} <span style={{ opacity: 0.7, fontWeight: 400 }}>(click to view)</span>
+                </Typography>
+              </Box>
             )}
           </Box>
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -1662,15 +1695,15 @@ const TestsManagement = () => {
             <Button
               onClick={handleSubmit}
               variant="contained"
-              disabled={!isValid || saving}
+              disabled={saving}
               startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon />}
               sx={{
-                bgcolor: '#111827',
+                bgcolor: 'var(--color-ink)',
                 color: '#ffffff',
                 borderRadius: '10px',
                 px: 4,
                 fontWeight: 700,
-                '&:hover': { bgcolor: '#111827' },
+                '&:hover': { bgcolor: 'var(--color-green)' },
                 '&.Mui-disabled': { bgcolor: '#e5e7eb', color: '#9ca3af' }
               }}
             >
@@ -1681,8 +1714,8 @@ const TestsManagement = () => {
       </Drawer>
 
       {/* Delete Test Dialog */}
-      <Dialog open={!!deleteTestDialog} onClose={() => setDeleteTestDialog(null)} PaperProps={{ sx: { bgcolor: '#0f172a', color: '#111827', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)' } }}>
-        <DialogTitle sx={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Dialog open={!!deleteTestDialog} onClose={() => setDeleteTestDialog(null)} PaperProps={{ sx: { bgcolor: '#ffffff', color: 'var(--color-ink)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)' } }}>
+        <DialogTitle sx={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
           <WarningIcon /> Delete Test
         </DialogTitle>
         <DialogContent>
@@ -1692,15 +1725,15 @@ const TestsManagement = () => {
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button onClick={() => setDeleteTestDialog(null)} sx={{ color: '#6b7280' }}>Cancel</Button>
-          <Button onClick={confirmDeleteTest} disabled={!!deletingId} sx={{ bgcolor: 'rgba(248,113,113,0.1)', color: '#f87171', '&:hover': { bgcolor: 'rgba(248,113,113,0.2)' } }}>
+          <Button onClick={confirmDeleteTest} disabled={!!deletingId} sx={{ bgcolor: 'rgba(239,68,68,0.1)', color: '#dc2626', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } }}>
             {deletingId ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Question Dialog */}
-      <Dialog open={deleteQuestionDialog !== null} onClose={() => setDeleteQuestionDialog(null)} PaperProps={{ sx: { bgcolor: '#0f172a', color: '#111827', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)' } }}>
-        <DialogTitle sx={{ color: '#f87171', display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Dialog open={deleteQuestionDialog !== null} onClose={() => setDeleteQuestionDialog(null)} PaperProps={{ sx: { bgcolor: '#ffffff', color: 'var(--color-ink)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.06)' } }}>
+        <DialogTitle sx={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
           <WarningIcon /> Delete Question
         </DialogTitle>
         <DialogContent>
@@ -1710,7 +1743,7 @@ const TestsManagement = () => {
         </DialogContent>
         <DialogActions sx={{ p: 2, pt: 0 }}>
           <Button onClick={() => setDeleteQuestionDialog(null)} sx={{ color: '#6b7280' }}>Cancel</Button>
-          <Button onClick={confirmDeleteQuestion} sx={{ bgcolor: 'rgba(248,113,113,0.1)', color: '#f87171', '&:hover': { bgcolor: 'rgba(248,113,113,0.2)' } }}>
+          <Button onClick={confirmDeleteQuestion} sx={{ bgcolor: 'rgba(239,68,68,0.1)', color: '#dc2626', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)' } }}>
             Delete
           </Button>
         </DialogActions>

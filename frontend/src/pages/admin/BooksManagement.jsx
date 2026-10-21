@@ -473,9 +473,18 @@ export default function BooksManagement() {
                     </Typography>
                   </TableCell>
                   <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
-                    <Typography sx={{ fontFamily: 'monospace', fontSize: '0.95rem', color: book.stock === 0 ? '#f43f5e' : 'rgba(255,255,255,0.85)' }}>
-                      {book.stock ?? '—'}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.95rem', color: book.stock === 0 ? '#dc2626' : 'var(--color-ink)' }}>
+                        {book.stock ?? 0}
+                      </Typography>
+                      {book.stock === 0 ? (
+                        <Chip label="Out of stock" size="small" sx={{ height: 20, fontSize: '0.68rem', bgcolor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 700 }} />
+                      ) : book.stock <= 5 ? (
+                        <Chip label="Low" size="small" sx={{ height: 20, fontSize: '0.68rem', bgcolor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }} />
+                      ) : (
+                        <Chip label="In stock" size="small" sx={{ height: 20, fontSize: '0.68rem', bgcolor: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', fontWeight: 600 }} />
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                     <Switch

@@ -35,6 +35,7 @@ const ICON_BY_SLUG = {
   "career-stream-selector": TrendingUpIcon,
   "commerce-stream-selector": AccountBalanceIcon,
   "humanities-stream-selector": AutoStoriesIcon,
+  "humanities-career-test": AutoStoriesIcon,
   "stream-selector-test": TrendingUpIcon,
   "commerce-career-selector": AccountBalanceIcon,
 };
@@ -48,6 +49,7 @@ const CATEGORY_BY_SLUG = {
   "career-stream-selector": "Stream & Subject Selection",
   "commerce-stream-selector": "Stream & Subject Selection",
   "humanities-stream-selector": "Stream & Subject Selection",
+  "humanities-career-test": "Stream & Subject Selection",
 };
 
 const CATEGORIES = ["All Assessments", "Stream & Subject Selection", "Aptitude & Career"];

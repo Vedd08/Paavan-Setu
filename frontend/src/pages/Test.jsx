@@ -351,6 +351,7 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
     if (!type) return;
     const token = localStorage.getItem('userToken');
     if (!token) {
+      sessionStorage.setItem('redirectAfterLogin', location.pathname);
       navigate('/login', { state: { from: location.pathname } });
       return;
     }

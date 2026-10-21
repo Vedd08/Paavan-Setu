@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { loginUser } from '../lib/api';
 import AuthForm from '../components/ui/AuthForm';
@@ -14,7 +14,13 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from || '/';
+  const from = location.state?.from || sessionStorage.getItem('redirectAfterLogin') || '/';
+
+  useEffect(() => {
+    if (location.state?.from) {
+      sessionStorage.setItem('redirectAfterLogin', location.state.from);
+    }
+  }, [location.state?.from]);
 
   const handleChange = (id, val) => setValues((p) => ({ ...p, [id]: val }));
 
@@ -26,6 +32,7 @@ export default function Login() {
       const res = await loginUser({ email: values.email, password: values.password });
       localStorage.setItem('userToken', res.token);
       localStorage.setItem('userName', res.user.name);
+      sessionStorage.removeItem('redirectAfterLogin');
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');

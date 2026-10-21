@@ -99,6 +99,7 @@ export default function MyResults() {
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
+      sessionStorage.setItem('redirectAfterLogin', '/my-results');
       navigate('/login', { state: { from: '/my-results' } });
       return;
     }

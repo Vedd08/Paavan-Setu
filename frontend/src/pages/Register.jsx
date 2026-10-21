@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { registerUser } from '../lib/api';
 import AuthForm from '../components/ui/AuthForm';
 
@@ -14,6 +14,14 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || sessionStorage.getItem('redirectAfterLogin') || '/';
+
+  useEffect(() => {
+    if (location.state?.from) {
+      sessionStorage.setItem('redirectAfterLogin', location.state.from);
+    }
+  }, [location.state?.from]);
 
   const handleChange = (id, val) => setValues((p) => ({ ...p, [id]: val }));
 
@@ -25,7 +33,8 @@ export default function Register() {
       const res = await registerUser({ name: values.name, email: values.email, password: values.password });
       localStorage.setItem('userToken', res.token);
       localStorage.setItem('userName', res.user.name);
-      navigate('/');
+      sessionStorage.removeItem('redirectAfterLogin');
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

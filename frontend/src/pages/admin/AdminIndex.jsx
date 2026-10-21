@@ -64,6 +64,7 @@ export default function AdminIndex() {
         <Route path="contacts" element={<ContactsManagement />} />
         <Route path="tests" element={<TestsManagement />} />
         <Route path="test-results" element={<TestAnalytics />} />
+        <Route path="test-analytics" element={<TestAnalytics />} />
         <Route path="testimonials" element={<TestimonialsManagement />} />
         <Route path="settings" element={<SettingsManagement />} />
         <Route path="seo" element={<SeoManagement />} />

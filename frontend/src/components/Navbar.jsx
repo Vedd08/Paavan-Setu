@@ -193,14 +193,25 @@ export default function Navbar() {
               </button>
             </motion.div>
           ) : (
-            <MotionLink
-              variants={linkVariants}
-              to="/login"
-              className="inline-flex items-center rounded-full px-3 py-2 text-sm font-semibold no-underline transition-colors duration-200 hover:bg-green/10 hover:underline-offset-2 xl:px-4"
-              style={{ color: colors.slate }}
-            >
-              Log In
-            </MotionLink>
+            /* Two real buttons, not a text link that reads like an eighth nav
+               item: an outlined Log In for returning users and a filled Sign Up
+               for new ones. */
+            <motion.div variants={linkVariants} className="flex items-center gap-2.5">
+              <Link
+                to="/login"
+                className="inline-flex shrink-0 items-center rounded-full border-[1.5px] px-4 py-2 text-sm font-semibold no-underline transition-colors duration-200 hover:bg-[#0a4f22]/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 xl:px-5"
+                style={{ fontFamily: fonts.body, color: colors.green, borderColor: 'rgba(10,79,34,0.4)', outlineColor: colors.green }}
+              >
+                Log In
+              </Link>
+              <Link
+                to="/register"
+                className="inline-flex shrink-0 items-center rounded-full border-[1.5px] px-4 py-2 text-sm font-semibold text-white no-underline transition-colors duration-200 hover:bg-[#073a18] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 xl:px-5"
+                style={{ fontFamily: fonts.body, background: colors.green, borderColor: colors.green, outlineColor: colors.green }}
+              >
+                Sign Up
+              </Link>
+            </motion.div>
           )}
         </motion.div>
 
@@ -303,28 +314,40 @@ export default function Navbar() {
               <Link
                 to="/my-results"
                 onClick={() => setDrawerOpen(false)}
-                className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold transition-all duration-200 border"
-                style={{ color: colors.ink, borderColor: colors.divider }}
+                className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold no-underline transition-colors duration-200 border-[1.5px]"
+                style={{ color: colors.green, borderColor: 'rgba(10,79,34,0.4)' }}
               >
                 My Results
               </Link>
               <button
                 onClick={() => { handleLogout(); setDrawerOpen(false); }}
-                className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold transition-all duration-200 border"
-                style={{ color: colors.ink, borderColor: colors.divider }}
+                className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold transition-colors duration-200 border-[1.5px]"
+                style={{ color: colors.green, borderColor: 'rgba(10,79,34,0.4)' }}
               >
                 Log Out
               </button>
             </>
           ) : (
-            <Link
-              to="/login"
-              onClick={() => setDrawerOpen(false)}
-              className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold transition-all duration-200 border"
-              style={{ color: colors.ink, borderColor: colors.divider }}
-            >
-              Log In
-            </Link>
+            /* The border used to be the 8%-opacity divider colour, which made
+               the button all but invisible on the white drawer. */
+            <>
+              <Link
+                to="/register"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold text-white no-underline transition-colors duration-200 hover:bg-[#073a18]"
+                style={{ fontFamily: fonts.body, background: colors.green }}
+              >
+                Sign Up
+              </Link>
+              <Link
+                to="/login"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold no-underline transition-colors duration-200 border-[1.5px] hover:bg-[#0a4f22]/[0.06]"
+                style={{ fontFamily: fonts.body, color: colors.green, borderColor: 'rgba(10,79,34,0.4)' }}
+              >
+                Log In
+              </Link>
+            </>
           )}
         </div>
       </Drawer>

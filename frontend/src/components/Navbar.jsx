@@ -6,17 +6,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { prefersReducedMotion } from '../lib/motion';
 import { colors, fonts } from '../constants/tokens';
-import { DMIT_BOOK_URL, TEST_COUPON_URL } from '../constants/booking';
 import logo from '../assets/logo_final.png';
 
-/* "Book Session" belongs only to the two bookable offerings, and books the
-   one the visitor is reading about: the DMIT page's WhatsApp booking, or a
-   coupon for the psychometric tests. Exact paths, so it stays off the test
-   runner (/test/:slug) — no booking button in the middle of an assessment. */
-const BOOKING_BY_PATH = {
-  '/dmit': { href: DMIT_BOOK_URL, label: 'Book Session' },
-  '/test': { href: TEST_COUPON_URL, label: 'Book Session' },
-};
+/* No booking button in the navbar: booking lives on the pages of the two
+   bookable offerings — the DMIT page and the psychometric tests page — each
+   with its own buttons for what it offers. */
 
 const navLinks = [
 { label: 'Home', path: '/', short: 'Home' },
@@ -35,7 +29,6 @@ export default function Navbar() {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
-  const booking = BOOKING_BY_PATH[location.pathname.replace(/\/+$/, '') || '/'];
 
   /* A link is active on its exact route or any nested route beneath it — the
      Psychometric Test item must stay lit while a student is mid-assessment at
@@ -141,8 +134,8 @@ export default function Navbar() {
           initial="hidden"
           animate="visible"
         >
-          {/* At 1024-1150px the seven labels plus the CTA run ~70px past the
-              pill, clipping the Book Session button; links tighten until xl. */}
+          {/* At 1024-1150px the seven labels run close to the pill's edge;
+              links tighten until xl. */}
           {navLinks.map((link, i) => {
             const isActive = isLinkActive(link.path);
             return (
@@ -208,24 +201,6 @@ export default function Navbar() {
             >
               Log In
             </MotionLink>
-          )}
-          
-          {booking && (
-            <motion.a
-              variants={linkVariants}
-              href={booking.href}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex shrink-0 items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white no-underline transition-colors duration-200 xl:px-6"
-              style={{
-                fontFamily: fonts.body,
-                background: colors.green,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = colors.blue; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = colors.green; }}
-            >
-              {booking.label}
-            </motion.a>
           )}
         </motion.div>
 
@@ -350,28 +325,6 @@ export default function Navbar() {
             >
               Log In
             </Link>
-          )}
-
-          {booking && (
-            <a
-              href={booking.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => setDrawerOpen(false)}
-              className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold text-white no-underline transition-all duration-200"
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                background: colors.green,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = colors.blue;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = colors.green;
-              }}
-            >
-              {booking.label}
-            </a>
           )}
         </div>
       </Drawer>

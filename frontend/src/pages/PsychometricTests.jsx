@@ -46,8 +46,7 @@ const CATEGORY_BY_SLUG = {
 const ALL = "All tests";
 const CATEGORIES = [ALL, "Stream & Subject Selection", "Aptitude & Career"];
 
-// COUPON_URL comes from constants/booking.js, shared with the navbar's
-// "Book Session" button on this page.
+// COUPON_URL comes from constants/booking.js.
 const HELP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
   'Hi! I need help choosing the right psychometric test on Paavan SETU.',
 )}`;

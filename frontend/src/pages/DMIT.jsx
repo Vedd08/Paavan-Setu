@@ -27,8 +27,8 @@ import fingertip from '../assets/hero/dmit-fingerprint.webp';
  * fingertip 7479537.
  */
 
-/* The price and the WhatsApp booking link live in constants/booking.js, shared
-   with the navbar's "Book Session" button on this page. Change the price there. */
+/* The price and the WhatsApp booking link live in constants/booking.js.
+   Change the price there. */
 
 /* ─── Content ──────────────────────────────────────────────────────────────── */
 

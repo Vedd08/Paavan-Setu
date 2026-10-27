@@ -70,8 +70,7 @@ const childVariants = {
  * One book on the shelf.
  *
  * Visual: the cover on the book's own pastel wash with a white tag chip floated
- * over it — the same chip HomeBooks uses, so a cover reads identically wherever
- * it appears. Content: subtitle micro-caps, serif title, a three-line
+ * over it. Content: subtitle micro-caps, serif title, a three-line
  * description, the price pair, and the actions pinned to the card's foot so
  * every row of the grid lines its buttons up.
  */

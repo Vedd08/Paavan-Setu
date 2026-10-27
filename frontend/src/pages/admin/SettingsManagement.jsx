@@ -50,8 +50,9 @@ const CATEGORIES = [
   {
     label: 'Hero',
     settings: [
-      { key: 'hero.title.line1', type: 'text', category: 'hero', label: 'Headline — first line', help: 'Rendered in white, e.g. "Building Character Through".' },
-      { key: 'hero.title.line2', type: 'text', category: 'hero', label: 'Headline — highlighted word', help: 'Rendered in the green-to-blue gradient.' },
+      { key: 'hero.title.line1', type: 'text', category: 'hero', label: 'Headline — first line', help: 'e.g. "Building Character Through".' },
+      { key: 'hero.title.line2', type: 'text', category: 'hero', label: 'Headline — highlighted word', help: 'Shown in green italics on its own line. Always the first word of the rotation.' },
+      { key: 'hero.rotatingWords', type: 'json', category: 'hero', label: 'Headline — rotating words', help: 'Array of words shown after the highlighted word, in turn, e.g. ["Guidance", "Values", "Clarity"]. Use [] to keep the word still.' },
       { key: 'hero.description', type: 'textarea', category: 'hero', label: 'Hero Description' },
       { key: 'hero.ctaPrimary', type: 'text', category: 'hero', label: 'Primary Button Text' },
       { key: 'hero.ctaPrimaryLink', type: 'text', category: 'hero', label: 'Primary Button Link', help: 'A site path such as /schools-workshops.' },
@@ -61,11 +62,9 @@ const CATEGORIES = [
   {
     label: 'Homepage',
     settings: [
-      { key: 'services.description', type: 'textarea', category: 'homepage', label: 'Services Intro' },
-      { key: 'services.items', type: 'json', category: 'homepage', label: 'Service Cards', help: 'Array of { title, desc, link, colSpan, bg, tone }.' },
-      { key: 'homepage.whyTitle', type: 'text', category: 'homepage', label: '"Why Us" Heading' },
-      { key: 'homepage.whyDescription', type: 'textarea', category: 'homepage', label: '"Why Us" Description' },
-      { key: 'homepage.achievements', type: 'json', category: 'homepage', label: 'Achievements', help: 'Array of strings, e.g. "2000+ Students Guided".' },
+      { key: 'homepage.whyTitle', type: 'text', category: 'homepage', label: '"Why Us" Heading', help: 'Heading of the last chapter of the homepage story.' },
+      { key: 'homepage.whyDescription', type: 'textarea', category: 'homepage', label: '"Why Us" Description', help: 'Text of the last chapter of the homepage story.' },
+      { key: 'homepage.achievements', type: 'json', category: 'homepage', label: 'Achievements', help: 'Array of strings, e.g. "2000+ Students Guided". The first four are shown, counting up, in the "Why Us" chapter.' },
       { key: 'homepage.testimonials', type: 'json', category: 'homepage', label: 'Testimonials', help: 'Array of { name, role, text }.' },
       { key: 'cta.title', type: 'text', category: 'homepage', label: 'Closing CTA Heading' },
       { key: 'cta.description', type: 'textarea', category: 'homepage', label: 'Closing CTA Description' },

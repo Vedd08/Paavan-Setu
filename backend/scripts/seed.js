@@ -193,26 +193,15 @@ const SETTINGS = [
 
   // Hero — Home.jsx splits the headline across two lines
   { key: 'hero.title.line1', value: 'Building Character Through', category: 'hero', description: 'Hero headline, first line (white).' },
-  { key: 'hero.title.line2', value: 'Education', category: 'hero', description: 'Hero headline, gradient-highlighted word.' },
+  { key: 'hero.title.line2', value: 'Education', category: 'hero', description: 'Hero headline, highlighted word (green italic).' },
+  { key: 'hero.rotatingWords', type: 'json', category: 'hero', description: 'Words the highlighted headline word cycles through after line 2.', value: ['Guidance', 'Values', 'Clarity'] },
   { key: 'hero.description', value: 'Nurturing minds and building character across generations. We combine academic excellence with value-based learning to create well-rounded individuals ready for a meaningful future.', category: 'hero', description: 'Hero paragraph.' },
   { key: 'hero.ctaPrimary', value: 'Explore Programs', category: 'hero', description: 'Primary hero button label.' },
   { key: 'hero.ctaPrimaryLink', value: '/schools-workshops', category: 'hero', description: 'Primary hero button target path.' },
   { key: 'hero.ctaSecondary', value: 'Contact via WhatsApp', category: 'hero', description: 'Secondary hero button label.' },
 
-  // Homepage
-  { key: 'services.description', value: 'Comprehensive solutions designed to help students discover their true potential and build a strong foundation for the future.', category: 'homepage', description: 'Intro under the "What We Do" heading.' },
-  {
-    key: 'services.items',
-    type: 'json',
-    category: 'homepage',
-    description: 'Service cards in the homepage bento grid.',
-    value: [
-      { title: 'Career Counselling', desc: 'Personalised one-on-one sessions using psychometric tools.', link: '/career-counselling', colSpan: 'md:col-span-6 md:row-span-2', bg: 'bg-brand-green-light', tone: 'green' },
-      { title: 'Value Books', desc: 'Thoughtfully authored books bridging academics with life values.', link: '/books', colSpan: 'md:col-span-3', bg: 'bg-brand-blue-light', tone: 'blue' },
-      { title: 'Schools & Workshops', desc: 'Interactive workshops instilling discipline and empathy.', link: '/schools-workshops', colSpan: 'md:col-span-3', bg: 'bg-brand-amber-light', tone: 'amber' },
-      { title: 'DMIT Assessment', desc: "Understand a student's innate strengths.", link: '/about', colSpan: 'md:col-span-6', bg: 'bg-brand-green-light', tone: 'green' },
-    ],
-  },
+  // Homepage. (The offering chapters of the homepage story — DMIT,
+  // psychometric tests, books — live in HomeStory.jsx beside their routes.)
   { key: 'homepage.whyTitle', value: 'Why Choose Paavan Setu for your future?', category: 'homepage', description: '"Why us" section heading.' },
   { key: 'homepage.whyDescription', value: 'At Paavan Setu, we believe that true education goes beyond textbooks. We combine academic excellence with value-based learning to create well-rounded individuals ready to make a positive impact on society.', category: 'homepage', description: '"Why us" section body.' },
   {

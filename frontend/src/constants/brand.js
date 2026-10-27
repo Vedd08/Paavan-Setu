@@ -38,6 +38,10 @@ export const brand = {
   ivoryLit: '#fffdf8',
   ivoryDeep: '#f7f0e2',
 
+  /* A cool, barely-green paper for the one alternate band on the homepage.
+     ash on mist 6.6:1, ink on mist 14.6:1. */
+  mist: '#f3f6f2',
+
   /* Type. */
   ink: '#0f2317',
   ash: '#47594c',

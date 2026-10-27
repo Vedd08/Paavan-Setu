@@ -11,6 +11,7 @@ import SmoothScroller from './components/ui/SmoothScroller';
 
 const Home = lazy(() => import('./pages/Home'));
 const CareerCounselling = lazy(() => import('./pages/CareerCounselling'));
+const DMIT = lazy(() => import('./pages/DMIT'));
 const Books = lazy(() => import('./pages/Books'));
 const SchoolsWorkshops = lazy(() => import('./pages/SchoolsWorkshops'));
 const About = lazy(() => import('./pages/About'));
@@ -55,6 +56,12 @@ const ROUTE_META = [
       'Psychometric and DMIT assessments meet one-on-one counselling so the stream, course and college a student picks are grounded in who they really are.',
   },
   {
+    path: '/dmit',
+    title: 'Manual DMIT Assessment, Ages 3 to 50 | Paavan SETU',
+    description:
+      'A hand-read DMIT: all ten fingerprints printed in ink and analysed by a trained expert, for an accurate picture of innate strengths and learning style from age 3 to 50. Special price ₹4,000.',
+  },
+  {
     path: '/books',
     title: 'Value-Education Books | Paavan SETU',
     description:
@@ -82,7 +89,7 @@ const ROUTE_META = [
     path: '/test',
     title: 'Psychometric Tests | Paavan SETU',
     description:
-      'Precision psychometric and DMIT assessments that map your innate strengths, learning style and ideal career pathway. Take an assessment online.',
+      'Online psychometric tests for students choosing a stream, subjects or a career. Take a test at your own pace and get a detailed report instantly.',
   },
   {
     path: '/login',
@@ -287,6 +294,7 @@ function AppContent() {
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/career-counselling" element={<CareerCounselling />} />
+          <Route path="/dmit" element={<DMIT />} />
           <Route path="/books" element={<Books />} />
           <Route path="/schools-workshops" element={<SchoolsWorkshops />} />
           <Route path="/about" element={<About />} />

@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
 
 const EXPLORE_LINKS = [
   { label: 'Home', path: '/' },
+  { label: 'DMIT Assessment', path: '/dmit' },
   { label: 'Career Counselling', path: '/career-counselling' },
   { label: 'Psychometric Tests', path: '/test' },
   { label: 'Books', path: '/books' },

@@ -1,45 +1,36 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence, useMotionValue, useMotionTemplate, useSpring, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { ArrowRight, Check, Clock, Eye, ListChecks, Plus, Search, X } from 'lucide-react';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 
-import PsychologyIcon from "@mui/icons-material/Psychology";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
-import AutoStoriesIcon from "@mui/icons-material/AutoStories";
-import EngineeringIcon from "@mui/icons-material/Engineering";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import AssignmentIcon from "@mui/icons-material/Assignment";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import CloseIcon from "@mui/icons-material/Close";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import TimerIcon from "@mui/icons-material/Timer";
-import QuizIcon from "@mui/icons-material/Quiz";
-import SearchIcon from "@mui/icons-material/Search";
-
-import { colors } from "../constants/tokens";
+import { brand } from "../constants/brand";
 import { WHATSAPP_NUMBER } from "../constants/urls";
-import TestsHero from "../components/ui/TestsHero";
+import { TEST_COUPON_URL as COUPON_URL } from "../constants/booking";
+import SunGlyph from "../components/ui/SunGlyph";
+import { RevealText, CountUp, EASE_OUT } from "../components/ui/TextMotion";
 import { getTests, logApiFailure } from "../lib/api";
+import psychometricOnline from "../assets/hero/psychometric-online.webp";
 
-/* ─── UI CONFIGURATION ───────────────────────────────────────────────────── */
+/**
+ * Psychometric tests — the catalogue, and only that.
+ *
+ * Explains what the online assessments are and how taking one works, then
+ * lists every published test from the API with a preview and a start button.
+ * The tests themselves, the runner at /test/:slug, coupons and reports are
+ * untouched: this page only changes how the catalogue is presented.
+ *
+ * Same visual language as the homepage and the DMIT page: white paper, DM
+ * Serif headings, brand green with gold accents, an arch-framed photograph,
+ * text that rises into place. Facts about the process (coupons, autosave,
+ * retakes, My Results) mirror what the runner actually does.
+ *
+ * Photograph: Pexels License — pexels.com/photo/4308097.
+ */
 
-/* Presentation is per-slug; FACTS come from the API.
-   This map used to hold duration and question counts for slugs that do not
-   exist in the database ("commerce-script", "stream-test", …), so every card
-   fell through to invented defaults — a 30-item inventory advertised itself as
-   "15 Questions" — and the category filter matched nothing at all. */
-const ICON_BY_SLUG = {
-  "holland-code-career-test": PsychologyIcon,
-  "engineering-branch-selector": EngineeringIcon,
-  "logical-reasoning-aptitude": TrendingUpIcon,
-  "career-stream-selector": TrendingUpIcon,
-  "commerce-stream-selector": AccountBalanceIcon,
-  "humanities-stream-selector": AutoStoriesIcon,
-  "humanities-career-test": AutoStoriesIcon,
-  "stream-selector-test": TrendingUpIcon,
-  "commerce-career-selector": AccountBalanceIcon,
-};
-
+/* ─── Catalogue configuration ──────────────────────────────────────────────
+   Presentation is per-slug; facts (counts, time limits, sample questions)
+   come from the API. */
 const CATEGORY_BY_SLUG = {
   "holland-code-career-test": "Aptitude & Career",
   "engineering-branch-selector": "Stream & Subject Selection",
@@ -52,39 +43,506 @@ const CATEGORY_BY_SLUG = {
   "humanities-career-test": "Stream & Subject Selection",
 };
 
-const CATEGORIES = ["All Assessments", "Stream & Subject Selection", "Aptitude & Career"];
+const ALL = "All tests";
+const CATEGORIES = [ALL, "Stream & Subject Selection", "Aptitude & Career"];
 
-/** Everything the card and preview need, derived from the test itself. */
+// COUPON_URL comes from constants/booking.js, shared with the navbar's
+// "Book Session" button on this page.
+const HELP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+  'Hi! I need help choosing the right psychometric test on Paavan SETU.',
+)}`;
+
+/** Everything a card and the preview need, derived from the test itself. */
 const deriveMeta = (test) => {
-  if (!test) return { category: "Assessment", duration: "Untimed", questionsCount: "—", highlights: [], sampleQ: "" };
   const count = test.questionsCount ?? (Array.isArray(test.questions) ? test.questions.length : null);
-  const dimensions = (test.categories || []).slice(0, 3);
-  const highlights = [
-    ...dimensions,
-    test.scoringMode === 'scored' ? 'Scored feedback' : 'Personalised profile',
-  ].slice(0, 4);
   return {
     category: CATEGORY_BY_SLUG[test.slug] || "Aptitude & Career",
-    duration: test.timeLimit ? `${test.timeLimit} Mins` : 'Untimed',
-    questionsCount: count ? `${count} Questions` : '—',
-    highlights,
+    duration: test.timeLimit ? `${test.timeLimit} min` : 'Untimed',
+    questions: count ? `${count} questions` : null,
+    format: test.scoringMode === 'scored' ? 'Scored test' : 'Personal profile report',
+    measures: (test.categories || []).slice(0, 4),
     sampleQ: test.sampleQuestion || '',
   };
 };
 
-const getBentoStyle = (index) => {
-  const pattern = index % 5;
-  if (pattern === 0) return { colSpan: "md:col-span-7" };
-  if (pattern === 1) return { colSpan: "md:col-span-5" };
-  if (pattern === 2) return { colSpan: "md:col-span-4" };
-  if (pattern === 3) return { colSpan: "md:col-span-4" };
-  return { colSpan: "md:col-span-4" };
-};
+const STEPS = [
+  { title: 'Choose a test', text: 'Pick the assessment that matches the decision in front of you, from stream to career.' },
+  { title: 'Sign in and add your coupon', text: 'A coupon unlocks the assessment. It is only used once you submit your answers.' },
+  { title: 'Answer at your own pace', text: 'Go back to any question. Your answers are saved as you go.' },
+  { title: 'Get your report instantly', text: 'See your results the moment you finish, and find them again anytime in My Results.' },
+];
 
-/* ─── TEST PREVIEW MODAL ─────────────────────────────────────────────────── */
+const REPORT_POINTS = [
+  { title: 'Your top match', text: 'The stream, field or career that fits you best, and how clear the lead is.' },
+  { title: 'Scores for every area', text: 'How you scored across each area the test measures, side by side.' },
+  { title: 'Strengths to build on', text: 'What comes naturally to you, and the areas worth developing.' },
+  { title: 'Yours to keep', text: 'Every result is saved to My Results, so you can revisit it or discuss it later.' },
+];
 
-function TestPreviewModal({ test, onClose, onStart }) {
-  // Escape closes the preview; while it is open the page behind should not scroll.
+const FAQS = [
+  {
+    q: 'Do I need an account?',
+    a: 'Yes. Create a free account or sign in when you start a test, so your results are saved to you.',
+  },
+  {
+    q: 'How do I get a coupon?',
+    a: 'Message us on WhatsApp and we will send you one. The coupon is checked when you begin and only used when you submit, so an unfinished attempt does not use it up.',
+  },
+  {
+    q: 'How long does a test take?',
+    a: 'Each test shows its number of questions and any time limit before you begin. Most can be completed in one sitting.',
+  },
+  {
+    q: 'What if I close the page halfway?',
+    a: 'Your answers are saved on your device as you go, so you can come back and continue the same attempt.',
+  },
+  {
+    q: 'Can I retake a test?',
+    a: 'Where a test allows it, yes. You can retake it with a new coupon after a short wait.',
+  },
+  {
+    q: 'Where can I see my results later?',
+    a: 'In My Results, available from the menu once you are signed in.',
+  },
+];
+
+/* ─── Shared bits ──────────────────────────────────────────────────────────── */
+
+function useFadeIn() {
+  const reducedMotion = useReducedMotion();
+  return (delay = 0) => (reducedMotion
+    ? {}
+    : {
+      initial: { opacity: 0, y: 16 },
+      whileInView: { opacity: 1, y: 0 },
+      viewport: { once: true, margin: '0px 0px -10% 0px' },
+      transition: { duration: 0.7, ease: EASE_OUT, delay },
+    });
+}
+
+function SectionHeading({ id, title, intro, center = false }) {
+  const fadeIn = useFadeIn();
+  return (
+    <div className={`mb-12 md:mb-14 ${center ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'}`}>
+      <RevealText
+        as="h2"
+        id={id}
+        text={title}
+        className="font-['DM_Serif_Display',Georgia,serif] text-[clamp(2rem,4vw,3.2rem)] leading-[1.08] tracking-[-0.02em]"
+        style={{ color: brand.ink }}
+      />
+      {intro && (
+        <motion.p {...fadeIn(0.2)} className="mt-5 text-[1.05rem] leading-[1.7]" style={{ color: brand.ash }}>
+          {intro}
+        </motion.p>
+      )}
+    </div>
+  );
+}
+
+const ARCH = 'rounded-b-[1.5rem] rounded-t-[999px]';
+const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4';
+
+function scrollToCatalogue() {
+  document.getElementById('pt-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ─── Hero ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * An illustrative report beside the photo — what a finished test hands back.
+ * Clearly labelled "Sample"; decorative, so hidden from assistive tech.
+ */
+function SampleReport() {
+  const reducedMotion = useReducedMotion();
+  const rows = [
+    { label: 'Commerce', value: 82, colour: brand.green },
+    { label: 'Science', value: 64, colour: brand.teal },
+    { label: 'Humanities', value: 48, colour: brand.goldDeep },
+  ];
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="absolute -bottom-6 left-0 w-[62%] min-w-[13.5rem] rounded-2xl border bg-white p-5"
+      style={{ borderColor: 'rgba(15,35,23,0.08)', boxShadow: '0 28px 50px -28px rgba(15,35,23,0.45)' }}
+      initial={reducedMotion ? false : { opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, ease: EASE_OUT, delay: 1.1 }}
+    >
+      <p className="text-[0.78rem] font-medium" style={{ color: brand.ash }}>Sample report</p>
+      <p className="mt-1 font-['DM_Serif_Display',Georgia,serif] text-[1.25rem] leading-tight" style={{ color: brand.ink }}>
+        Top match: Commerce
+      </p>
+      <div className="mt-4 space-y-3">
+        {rows.map((row, i) => (
+          <div key={row.label}>
+            <div className="mb-1 flex justify-between text-[0.78rem]" style={{ color: brand.ash }}>
+              <span>{row.label}</span>
+              <span className="tabular-nums">{row.value}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(15,35,23,0.08)' }}>
+              <motion.div
+                className="h-full rounded-full"
+                style={{ width: `${row.value}%`, backgroundColor: row.colour, originX: 0 }}
+                initial={reducedMotion ? false : { scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1, ease: EASE_OUT, delay: 1.35 + i * 0.12 }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function Hero({ testCount }) {
+  const reducedMotion = useReducedMotion();
+  const after = (delay) => (reducedMotion
+    ? {}
+    : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.8, ease: EASE_OUT, delay } });
+
+  return (
+    <section aria-labelledby="pt-heading" className="px-6 pb-24 pt-32 sm:pt-36 lg:pb-32 lg:pt-40">
+      <div className="mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-12 lg:gap-10">
+        <div className="lg:col-span-7">
+          <motion.p {...after(0)} className="mb-6 inline-flex items-center gap-2.5 text-[0.92rem] font-medium" style={{ color: brand.green }}>
+            <SunGlyph className="h-4 w-4 shrink-0" />
+            Psychometric tests
+          </motion.p>
+
+          <RevealText
+            as="h1"
+            id="pt-heading"
+            text="Know your strengths before you choose."
+            trigger="mount"
+            delay={0.1}
+            stagger={0.05}
+            className="font-['DM_Serif_Display',Georgia,serif] text-[clamp(2.6rem,5.4vw,4.5rem)] leading-[1.04] tracking-[-0.025em]"
+            style={{ color: brand.ink }}
+          />
+
+          <motion.p {...after(0.55)} className="mt-7 max-w-xl text-[1.06rem] leading-[1.7] sm:text-lg" style={{ color: brand.ash }}>
+            Online aptitude, interest and personality assessments for students choosing a stream,
+            subjects or a career. Take a test right here, at your own pace, and get a detailed
+            report the moment you finish.
+          </motion.p>
+
+          <motion.div {...after(0.75)} className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-7">
+            <button
+              type="button"
+              onClick={scrollToCatalogue}
+              className={`group inline-flex items-center justify-center gap-2.5 whitespace-nowrap rounded-full px-8 py-4 text-[0.98rem]
+                         font-semibold text-white transition-[background-color,transform] duration-200 ease-out
+                         hover:bg-[#08481f] active:scale-[0.97] ${FOCUS}`}
+              style={{ backgroundColor: brand.green, outlineColor: brand.green }}
+            >
+              Choose a test
+              <ArrowRight size={17} className="transition-transform duration-200 ease-out group-hover:translate-x-1" />
+            </button>
+            <a
+              href={COUPON_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={`group inline-flex items-center justify-center gap-2.5 whitespace-nowrap rounded-full py-2 text-[0.98rem] font-semibold no-underline ${FOCUS}`}
+              style={{ color: brand.ink, outlineColor: brand.green }}
+            >
+              <WhatsAppIcon sx={{ fontSize: 20 }} style={{ color: brand.green }} aria-hidden="true" />
+              <span className="relative">
+                Get a coupon on WhatsApp
+                <span aria-hidden="true" className="absolute -bottom-0.5 left-0 block h-px w-full origin-right scale-x-0 bg-current transition-transform duration-300 ease-out group-hover:origin-left group-hover:scale-x-100" />
+              </span>
+            </a>
+          </motion.div>
+
+          <motion.dl {...after(0.95)} className="mt-12 grid max-w-xl grid-cols-3 gap-6 border-t pt-7" style={{ borderColor: 'rgba(15,35,23,0.1)' }}>
+            {[
+              { value: testCount ? <CountUp value={String(testCount)} /> : '—', label: 'Online assessments' },
+              { value: 'Instant', label: 'Detailed report' },
+              { value: 'Saved', label: 'Answers kept as you go' },
+            ].map((stat) => (
+              <div key={stat.label} className="flex flex-col-reverse gap-1">
+                <dt className="text-[0.84rem] leading-snug" style={{ color: brand.ash }}>{stat.label}</dt>
+                <dd className="m-0 font-['DM_Serif_Display',Georgia,serif] text-[1.9rem] leading-none" style={{ color: brand.ink }}>
+                  {stat.value}
+                </dd>
+              </div>
+            ))}
+          </motion.dl>
+        </div>
+
+        <div className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none">
+          <div className="relative ml-auto aspect-[4/5] w-[86%]">
+            <span aria-hidden="true" className={`pointer-events-none absolute -inset-[9px] border ${ARCH}`} style={{ borderColor: 'rgba(233,200,92,0.75)' }} />
+            <motion.div
+              className={`relative h-full w-full overflow-hidden ${ARCH}`}
+              style={{ boxShadow: '0 30px 60px -34px rgba(15,35,23,0.55)' }}
+              initial={reducedMotion ? false : { clipPath: 'inset(100% 0% 0% 0%)' }}
+              animate={{ clipPath: 'inset(0% 0% 0% 0%)' }}
+              transition={{ duration: 1.1, ease: [0.77, 0, 0.175, 1], delay: 0.5 }}
+            >
+              <img
+                src={psychometricOnline}
+                alt="Two students working through a test on a laptop"
+                className="h-full w-full object-cover"
+                style={{ objectPosition: '50% 55%' }}
+                fetchpriority="high"
+                decoding="async"
+              />
+            </motion.div>
+          </div>
+          <SampleReport />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── How it works ─────────────────────────────────────────────────────────── */
+
+function HowItWorks() {
+  const fadeIn = useFadeIn();
+  return (
+    <section aria-labelledby="pt-steps-heading" className="px-6 py-24 md:py-28" style={{ backgroundColor: brand.mist }}>
+      <div className="mx-auto max-w-6xl">
+        <SectionHeading id="pt-steps-heading" title="How taking a test works" />
+        <ol className="m-0 grid list-none gap-10 p-0 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+          {STEPS.map((step, i) => (
+            <motion.li key={step.title} {...fadeIn(0.08 * i)}>
+              <span aria-hidden="true" className="block font-['DM_Serif_Display',Georgia,serif] text-[3rem] leading-none" style={{ color: brand.goldDeep }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <h3 className="mt-4 font-['DM_Serif_Display',Georgia,serif] text-[1.45rem] leading-tight" style={{ color: brand.ink }}>
+                <span className="sr-only">{`Step ${i + 1}: `}</span>
+                {step.title}
+              </h3>
+              <p className="mt-3 text-[1rem] leading-[1.65]" style={{ color: brand.ash }}>{step.text}</p>
+            </motion.li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Catalogue ────────────────────────────────────────────────────────────── */
+
+/* forwardRef: AnimatePresence's popLayout mode measures each exiting card
+   through a ref, and a plain function component cannot take one. */
+const TestCard = React.forwardRef(function TestCard({ test, index, onStart, onPreview }, ref) {
+  const reducedMotion = useReducedMotion();
+  const meta = deriveMeta(test);
+
+  return (
+    <motion.article
+      ref={ref}
+      layout={!reducedMotion}
+      initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
+      animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE_OUT, delay: Math.min(index * 0.06, 0.3) } }}
+      exit={{ opacity: 0, transition: { duration: 0.18 } }}
+      className="group flex flex-col rounded-[1.75rem] border bg-white p-7 transition-[border-color,box-shadow,transform] duration-300 ease-out
+                 hover:-translate-y-0.5 hover:border-[#0a5c2c]/35 hover:shadow-[0_26px_50px_-30px_rgba(15,35,23,0.4)] sm:p-8"
+      style={{ borderColor: 'rgba(15,35,23,0.1)' }}
+      aria-labelledby={`test-${test.slug}`}
+    >
+      {/* Grows to fill the card, so every card's buttons line up at the bottom. */}
+      <div className="flex-1">
+        <p className="text-[0.85rem] font-medium" style={{ color: brand.green }}>{meta.category}</p>
+        <h3
+          id={`test-${test.slug}`}
+          className="mt-2 font-['DM_Serif_Display',Georgia,serif] text-[1.75rem] leading-[1.12] tracking-[-0.01em] sm:text-[2rem]"
+          style={{ color: brand.ink }}
+        >
+          {test.name}
+        </h3>
+        {test.description && (
+          <p className="mt-3 line-clamp-3 text-[1rem] leading-[1.65]" style={{ color: brand.ash }}>{test.description}</p>
+        )}
+
+        <ul className="m-0 mt-5 flex list-none flex-wrap gap-x-5 gap-y-2 p-0 text-[0.9rem]" style={{ color: brand.ink }}>
+          {meta.questions && (
+            <li className="inline-flex items-center gap-1.5">
+              <ListChecks size={16} aria-hidden="true" style={{ color: brand.green }} />
+              {meta.questions}
+            </li>
+          )}
+          <li className="inline-flex items-center gap-1.5">
+            <Clock size={16} aria-hidden="true" style={{ color: brand.green }} />
+            {meta.duration}
+          </li>
+          <li className="inline-flex items-center gap-1.5">
+            <Check size={16} aria-hidden="true" style={{ color: brand.green }} />
+            {meta.format}
+          </li>
+        </ul>
+
+        {meta.measures.length > 0 && (
+          <p className="mt-4 text-[0.9rem] leading-relaxed" style={{ color: brand.ash }}>
+            <span className="font-semibold" style={{ color: brand.ink }}>Measures: </span>
+            {meta.measures.join(', ')}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-7 flex items-center justify-between gap-4 border-t pt-6" style={{ borderColor: 'rgba(15,35,23,0.08)' }}>
+        <button
+          type="button"
+          onClick={() => onPreview(test)}
+          className={`inline-flex items-center gap-2 rounded-full py-2 text-[0.92rem] font-semibold transition-colors duration-200 hover:text-[#0a5c2c] ${FOCUS}`}
+          style={{ color: brand.ash, outlineColor: brand.green }}
+        >
+          <Eye size={17} aria-hidden="true" />
+          Preview
+        </button>
+        <button
+          type="button"
+          onClick={() => onStart(test.slug)}
+          className={`group/start inline-flex items-center gap-2 rounded-full px-6 py-3 text-[0.92rem] font-semibold text-white
+                     transition-[background-color,transform] duration-200 ease-out hover:bg-[#08481f] active:scale-[0.97] ${FOCUS}`}
+          style={{ backgroundColor: brand.green, outlineColor: brand.green }}
+        >
+          Start test
+          <ArrowRight size={16} className="transition-transform duration-200 ease-out group-hover/start:translate-x-1" />
+        </button>
+      </div>
+    </motion.article>
+  );
+});
+
+function Catalogue({ tests, loading, error, onStart, onPreview }) {
+  const [category, setCategory] = useState(ALL);
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    let result = [...tests];
+    if (category !== ALL) result = result.filter((t) => deriveMeta(t).category === category);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter((t) =>
+        (t.name && t.name.toLowerCase().includes(q)) ||
+        (t.description && t.description.toLowerCase().includes(q)));
+    }
+    return result;
+  }, [tests, category, search]);
+
+  const countFor = (cat) => (cat === ALL ? tests.length : tests.filter((t) => deriveMeta(t).category === cat).length);
+
+  return (
+    <section id="pt-grid" aria-labelledby="pt-grid-heading" className="scroll-mt-28 px-6 py-24 md:py-32">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-10 grid gap-8 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <SectionHeading
+              id="pt-grid-heading"
+              title="Choose your test"
+              intro="Every test runs online on this website. Preview any of them to see what it measures and a sample question."
+            />
+          </div>
+          {/* Search */}
+          <div className="relative lg:col-span-5 lg:mb-14">
+            <label htmlFor="pt-search" className="sr-only">Search tests</label>
+            <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: brand.ash }} />
+            <input
+              id="pt-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or topic"
+              className="w-full rounded-full border bg-white py-3.5 pl-11 pr-4 text-[0.98rem] outline-none transition-[border-color,box-shadow] duration-200
+                         focus:border-[#0a5c2c]/50 focus:shadow-[0_0_0_4px_rgba(10,92,44,0.1)]"
+              style={{ borderColor: 'rgba(15,35,23,0.15)', color: brand.ink }}
+            />
+          </div>
+        </div>
+
+        {/* Category filter */}
+        <div role="group" aria-label="Filter tests by category" className="mb-10 flex flex-wrap gap-2.5">
+          {CATEGORIES.map((cat) => {
+            const isActive = category === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                aria-pressed={isActive}
+                className={`inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-[0.92rem] font-semibold
+                           transition-[background-color,color,border-color] duration-200 ease-out ${FOCUS}`}
+                style={isActive
+                  ? { backgroundColor: brand.green, borderColor: brand.green, color: '#ffffff', outlineColor: brand.green }
+                  : { backgroundColor: '#ffffff', borderColor: 'rgba(15,35,23,0.15)', color: brand.ink, outlineColor: brand.green }}
+              >
+                {cat}
+                <span
+                  className="rounded-full px-2 py-0.5 text-[0.75rem] tabular-nums"
+                  style={isActive ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: 'rgba(15,35,23,0.06)', color: brand.ash }}
+                >
+                  {countFor(cat)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 md:gap-7">
+          {loading ? (
+            [0, 1, 2, 3].map((i) => (
+              <div key={i} className="min-h-[22rem] animate-pulse rounded-[1.75rem]" style={{ backgroundColor: brand.mist }} />
+            ))
+          ) : error || tests.length === 0 ? (
+            <div className="rounded-[1.75rem] px-6 py-16 text-center md:col-span-2" style={{ backgroundColor: brand.mist }}>
+              <h3 className="font-['DM_Serif_Display',Georgia,serif] text-[1.6rem]" style={{ color: brand.ink }}>
+                The tests could not be loaded
+              </h3>
+              <p className="mx-auto mt-3 max-w-md" style={{ color: brand.ash }}>Check your connection and try again.</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className={`mt-7 rounded-full px-7 py-3 text-[0.95rem] font-semibold text-white ${FOCUS}`}
+                style={{ backgroundColor: brand.green, outlineColor: brand.green }}
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {filtered.length === 0 ? (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="rounded-[1.75rem] px-6 py-16 text-center md:col-span-2"
+                  style={{ backgroundColor: brand.mist }}
+                >
+                  <h3 className="font-['DM_Serif_Display',Georgia,serif] text-[1.6rem]" style={{ color: brand.ink }}>
+                    No tests match
+                  </h3>
+                  <p className="mx-auto mt-3 max-w-md" style={{ color: brand.ash }}>Try another word, or show every test.</p>
+                  <button
+                    type="button"
+                    onClick={() => { setSearch(''); setCategory(ALL); }}
+                    className={`mt-7 rounded-full px-7 py-3 text-[0.95rem] font-semibold text-white ${FOCUS}`}
+                    style={{ backgroundColor: brand.green, outlineColor: brand.green }}
+                  >
+                    Show all tests
+                  </button>
+                </motion.div>
+              ) : filtered.map((test, index) => (
+                <TestCard key={test.slug} test={test} index={index} onStart={onStart} onPreview={onPreview} />
+              ))}
+            </AnimatePresence>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Preview dialog ───────────────────────────────────────────────────────── */
+
+function PreviewDialog({ test, onClose, onStart }) {
+  const reducedMotion = useReducedMotion();
+
+  // Escape closes the preview; while it is open the page behind does not scroll.
   useEffect(() => {
     if (!test) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -96,301 +554,199 @@ function TestPreviewModal({ test, onClose, onStart }) {
     };
   }, [test, onClose]);
 
-  if (!test) return null;
-
-  const meta = deriveMeta(test);
-  const Icon = ICON_BY_SLUG[test.slug] || AssignmentIcon;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-[#061e12]/45 backdrop-blur-sm"
-        />
+      {test && (() => {
+        const meta = deriveMeta(test);
+        return (
+          <div key="preview" className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto p-4 sm:p-6">
+            <motion.div
+              className="fixed inset-0 bg-[#0f2317]/45 backdrop-blur-sm"
+              onClick={onClose}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pt-preview-title"
+              className="relative z-10 w-full max-w-2xl rounded-[1.75rem] bg-white p-7 sm:p-10"
+              style={{ boxShadow: '0 40px 90px -30px rgba(15,35,23,0.5)' }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 8, transition: { duration: 0.15 } }}
+              transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close preview"
+                className={`absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full transition-colors duration-150 hover:bg-[#f3f6f2] ${FOCUS}`}
+                style={{ color: brand.ash, outlineColor: brand.green }}
+                autoFocus
+              >
+                <X size={20} />
+              </button>
 
-        <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-label={test?.name || 'Assessment preview'}
-          initial={{ opacity: 0, scale: 0.96, y: 16 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.97, y: 10 }}
-          transition={{ type: "spring", stiffness: 380, damping: 30 }}
-          className="relative z-10 w-full max-w-2xl overflow-hidden rounded-3xl border border-zinc-200/80 bg-white p-6 text-zinc-900 shadow-[0_32px_80px_-24px_rgba(10,79,34,0.28)] sm:p-10"
-        >
-          <button
-            onClick={onClose}
-            aria-label="Close preview"
-            className="absolute top-6 right-6 grid h-10 w-10 place-items-center rounded-full bg-zinc-100 text-zinc-500 transition-transform duration-150 ease-out hover:scale-[1.05] hover:bg-zinc-200 hover:text-zinc-800 active:scale-[0.94] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-          >
-            <CloseIcon fontSize="small" />
-          </button>
-
-          <div className="flex items-center gap-4 mb-6">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-900/10 bg-[#eef6f0] text-[#0a5c2c] shadow-sm">
-              <Icon sx={{ fontSize: 32 }} />
-            </span>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-[#0a5c2c]/[0.06] text-[#0a5c2c] border border-[#0a5c2c]/15">
-                {meta.category || "Standardized Assessment"}
-              </span>
-              <h3 className="mt-1 font-['DM_Serif_Display',Georgia,serif] text-2xl sm:text-3xl text-[#061e12] tracking-tight">
+              <p className="text-[0.85rem] font-medium" style={{ color: brand.green }}>{meta.category}</p>
+              <h3 id="pt-preview-title" className="mt-2 pr-10 font-['DM_Serif_Display',Georgia,serif] text-[2rem] leading-[1.1]" style={{ color: brand.ink }}>
                 {test.name}
               </h3>
-            </div>
-          </div>
+              {test.description && (
+                <p className="mt-4 text-[1.02rem] leading-[1.7]" style={{ color: brand.ash }}>{test.description}</p>
+              )}
 
-          <p className="text-base leading-relaxed text-zinc-600 mb-6" style={{ textWrap: 'pretty' }}>
-            {test.description}
-          </p>
-
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="flex items-center gap-3 p-4 rounded-2xl bg-[#f6faf7] border border-emerald-900/[0.06]">
-              <TimerIcon className="text-[#0a5c2c]" sx={{ fontSize: 22 }} />
-              <div>
-                <p className="text-xs text-zinc-500 font-medium">Time required</p>
-                <p className="text-sm font-bold tabular-nums text-zinc-900">{meta.duration}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 rounded-2xl bg-[#f6faf7] border border-emerald-900/[0.06]">
-              <QuizIcon className="text-[#8a6a1f]" sx={{ fontSize: 22 }} />
-              <div>
-                <p className="text-xs text-zinc-500 font-medium">Questions</p>
-                <p className="text-sm font-bold tabular-nums text-zinc-900">{meta.questionsCount}</p>
-              </div>
-            </div>
-          </div>
-
-          {meta.highlights && (
-            <div className="rounded-2xl border border-emerald-900/[0.06] bg-[#f6faf7] p-5 mb-6">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#8a6a1f] mb-3">Key outcomes & insights</p>
-              <div className="space-y-2">
-                {meta.highlights.map((h, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-sm text-zinc-700">
-                    <CheckCircleOutlineIcon fontSize="small" className="text-[#0a5c2c] shrink-0" />
-                    <span>{h}</span>
+              <dl className="mt-6 grid grid-cols-2 gap-4 border-y py-5 sm:grid-cols-3" style={{ borderColor: 'rgba(15,35,23,0.08)' }}>
+                {[
+                  { label: 'Questions', value: meta.questions || '—' },
+                  { label: 'Time', value: meta.duration },
+                  { label: 'Result', value: meta.format },
+                ].map((item) => (
+                  <div key={item.label} className="flex flex-col-reverse gap-1">
+                    <dt className="text-[0.82rem]" style={{ color: brand.ash }}>{item.label}</dt>
+                    <dd className="m-0 text-[1rem] font-semibold" style={{ color: brand.ink }}>{item.value}</dd>
                   </div>
                 ))}
+              </dl>
+
+              {meta.measures.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-['DM_Sans',sans-serif] text-[0.95rem] font-semibold" style={{ color: brand.ink }}>What it measures</h4>
+                  <ul className="m-0 mt-3 grid list-none gap-2 p-0 sm:grid-cols-2">
+                    {meta.measures.map((m) => (
+                      <li key={m} className="flex items-center gap-2.5 text-[0.95rem]" style={{ color: brand.ash }}>
+                        <Check size={16} aria-hidden="true" style={{ color: brand.green }} />
+                        {m}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {meta.sampleQ && (
+                <blockquote className="m-0 mt-6 border-l-2 pl-4" style={{ borderColor: brand.gold }}>
+                  <p className="text-[0.82rem] font-medium" style={{ color: brand.ash }}>Sample question</p>
+                  <p className="mt-1 font-['DM_Serif_Display',Georgia,serif] text-[1.2rem] italic leading-snug" style={{ color: brand.green }}>
+                    {meta.sampleQ}
+                  </p>
+                </blockquote>
+              )}
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onStart(test.slug); }}
+                  className={`group inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-[0.98rem] font-semibold text-white
+                             transition-[background-color,transform] duration-200 ease-out hover:bg-[#08481f] active:scale-[0.97] ${FOCUS}`}
+                  style={{ backgroundColor: brand.green, outlineColor: brand.green }}
+                >
+                  Start this test
+                  <ArrowRight size={17} className="transition-transform duration-200 ease-out group-hover:translate-x-1" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className={`rounded-full px-6 py-4 text-[0.98rem] font-semibold transition-colors duration-150 hover:bg-[#f3f6f2] ${FOCUS}`}
+                  style={{ color: brand.ash, outlineColor: brand.green }}
+                >
+                  Close
+                </button>
               </div>
-            </div>
-          )}
-
-          {meta.sampleQ && (
-            <div className="p-4 rounded-2xl bg-[#eef6f0] border border-emerald-900/10 mb-8">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#0a5c2c] mb-1">Sample question</p>
-              <p className="text-sm italic text-zinc-700">"{meta.sampleQ}"</p>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <button
-              onClick={() => {
-                onClose();
-                onStart(test.slug);
-              }}
-              className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-bold text-[#051a0d] shadow-[0_12px_28px_-10px_rgba(217,174,60,0.7)] transition-transform duration-150 ease-out hover:scale-[1.02] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-              style={{ background: 'linear-gradient(135deg, #f7e6ae 0%, #e9c85c 50%, #d9ae3c 100%)' }}
-            >
-              Start Assessment Now
-              <ArrowForwardIcon fontSize="small" />
-            </button>
-            <button
-              onClick={onClose}
-              className="w-full sm:w-auto inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-6 py-4 text-sm font-semibold text-zinc-600 transition-[transform,background-color,color] duration-150 ease-out hover:bg-zinc-50 hover:text-zinc-900 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-            >
-              Close preview
-            </button>
+            </motion.div>
           </div>
-        </motion.div>
-      </div>
+        );
+      })()}
     </AnimatePresence>
   );
 }
 
-/* ─── BENTO CARD COMPONENT ───────────────────────────────────────────────── */
+/* ─── What the report shows ────────────────────────────────────────────────── */
 
-const BentoTestCard = React.forwardRef(({ test, index, onStart, onPreview }, ref) => {
-  const reduceMotion = useReducedMotion();
-  const custom = deriveMeta(test);
-  const Icon = ICON_BY_SLUG[test.slug] || AssignmentIcon;
-  const { colSpan } = getBentoStyle(index);
-
-  const cardRef = useRef(null);
-  const mouseX = useMotionValue(0.5);
-  const mouseY = useMotionValue(0.5);
-  const glowX = useMotionValue(50);
-  const glowY = useMotionValue(50);
-
-  function onMouseMove(e) {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-
-    mouseX.set(x);
-    mouseY.set(y);
-    glowX.set(x * 100);
-    glowY.set(y * 100);
-  }
-
-  const setRefs = (node) => {
-    cardRef.current = node;
-    if (typeof ref === 'function') {
-      ref(node);
-    } else if (ref) {
-      ref.current = node;
-    }
-  };
-
-  const spotlight = useMotionTemplate`radial-gradient(500px circle at ${glowX}% ${glowY}%, rgba(10,92,44,0.06) 0%, transparent 70%)`;
-  const isFeatured = index === 0;
-
+function ReportShows() {
+  const fadeIn = useFadeIn();
   return (
-    <motion.div
-      ref={setRefs}
-      onMouseMove={onMouseMove}
-      layout
-      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.98 }}
-      animate={reduceMotion
-        ? { opacity: 1 }
-        // Staggered cascade on mount (30-80ms per card); hover/exit keep their
-        // own undelayed transition from the `transition` prop below.
-        : { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 320, damping: 26, delay: Math.min(index * 0.06, 0.3) } }}
-      exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.18, ease: 'easeOut' } }}
-      whileHover={reduceMotion ? {} : { y: -5 }}
-      whileTap={reduceMotion ? {} : { scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-      className={`group relative flex flex-col justify-between overflow-hidden rounded-[2.25rem] border p-7 text-left transition-[box-shadow,border-color,background-color] duration-300 ease-out md:p-9 ${colSpan} cursor-pointer active:scale-[0.98] ${
-        isFeatured
-          ? 'border-[#d9ae3c]/50 bg-gradient-to-br from-white via-[#fffdf5] to-[#fdf8ec] shadow-[0_24px_55px_-28px_rgba(138,106,31,0.28)]'
-          : 'border-emerald-900/[0.08] bg-white shadow-[0_20px_45px_-30px_rgba(10,79,34,0.35)]'
-      } hover:shadow-[0_32px_70px_-30px_rgba(10,79,34,0.4)] hover:border-emerald-900/20`}
-    >
-      {/* Gold/Green accent bar on hover */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1 origin-left scale-x-0 transition-transform duration-500 group-hover:scale-x-100"
-        style={{ background: 'linear-gradient(90deg, #0a5c2c 0%, #e8b86d 100%)' }}
-      />
+    <section aria-labelledby="pt-report-heading" className="px-6 py-24 md:py-28" style={{ backgroundColor: brand.mist }}>
+      <div className="mx-auto max-w-6xl">
+        <SectionHeading
+          id="pt-report-heading"
+          title="What your report tells you"
+          intro="Not just a score. A clear picture you can act on, ready the moment you submit."
+        />
+        <ul className="m-0 grid list-none gap-x-10 gap-y-12 p-0 sm:grid-cols-2 lg:grid-cols-4">
+          {REPORT_POINTS.map((point, i) => (
+            <motion.li key={point.title} {...fadeIn(0.07 * i)} className="border-t pt-6" style={{ borderColor: 'rgba(15,35,23,0.14)' }}>
+              <span aria-hidden="true" className="mb-5 block h-[3px] w-10 rounded-full" style={{ backgroundColor: brand.gold }} />
+              <h3 className="font-['DM_Serif_Display',Georgia,serif] text-[1.45rem] leading-tight" style={{ color: brand.ink }}>{point.title}</h3>
+              <p className="mt-3 text-[1rem] leading-[1.65]" style={{ color: brand.ash }}>{point.text}</p>
+            </motion.li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
-      {/* Interactive Cursor Spotlight */}
-      <motion.div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{ background: spotlight }}
-      />
+/* ─── FAQ + help ───────────────────────────────────────────────────────────── */
 
-      {/* Subtle Background Wash */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-30 blur-3xl transition-opacity duration-500 group-hover:opacity-70"          style={{
-            background: isFeatured
-              ? 'radial-gradient(circle, rgba(232,184,109,0.2) 0%, transparent 70%)'
-              : 'radial-gradient(circle, rgba(10,92,44,0.08) 0%, transparent 70%)',
-          }}
-      />
-
-      {/* Top Section */}
-      <div className="relative z-10 flex flex-col">
-        {/* Header Row: Icon, Category Badge & Featured Tag */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-900/10 bg-[#eef6f0] text-[#0a5c2c] shadow-sm transition-transform duration-200 ease-out group-hover:scale-110 group-hover:rotate-3">
-              <Icon sx={{ fontSize: 28 }} />
-            </span>
-            <span className="rounded-full border border-[#0a5c2c]/15 bg-[#0a5c2c]/[0.05] px-3.5 py-1 text-[0.72rem] font-bold uppercase tracking-widest text-[#0a5c2c]">
-              {custom.category}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isFeatured && (
-              <span className="rounded-full border border-[#d9ae3c]/40 bg-[#e9c85c]/15 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-wider text-[#8a6a1f] shadow-sm">
-                Featured
-              </span>
-            )}
-            <span className="flex items-center gap-1 rounded-full border border-emerald-900/[0.08] bg-[#f6faf7] px-3 py-1 text-xs font-semibold tabular-nums text-zinc-600">
-              <TimerIcon sx={{ fontSize: 15 }} className="text-[#0a5c2c]" />
-              {custom.duration}
-            </span>
-            {test.difficulty && test.difficulty !== 'mixed' && (
-              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-wider border ${
-                test.difficulty === 'beginner'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : test.difficulty === 'advanced'
-                    ? 'bg-red-50 text-red-700 border-red-200'
-                    : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}>
-                <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
-                {test.difficulty}
-              </span>
-            )}
-          </div>
+function Faq() {
+  return (
+    <section aria-labelledby="pt-faq-heading" className="px-6 py-24 md:py-32">
+      <div className="mx-auto max-w-3xl">
+        <SectionHeading id="pt-faq-heading" title="Questions about the tests" center />
+        <div className="border-t" style={{ borderColor: 'rgba(15,35,23,0.12)' }}>
+          {FAQS.map((item) => (
+            <details key={item.q} className="group border-b" style={{ borderColor: 'rgba(15,35,23,0.12)' }}>
+              <summary
+                className={`flex cursor-pointer list-none items-center justify-between gap-6 py-6 text-left [&::-webkit-details-marker]:hidden ${FOCUS}`}
+                style={{ outlineColor: brand.green }}
+              >
+                <span className="font-['DM_Serif_Display',Georgia,serif] text-[1.3rem] leading-snug" style={{ color: brand.ink }}>{item.q}</span>
+                <span
+                  aria-hidden="true"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-transform duration-200 ease-out group-open:rotate-45"
+                  style={{ borderColor: 'rgba(15,35,23,0.18)', color: brand.green }}
+                >
+                  <Plus size={18} />
+                </span>
+              </summary>
+              <p className="-mt-1 pb-6 pr-14 text-[1.02rem] leading-[1.7]" style={{ color: brand.ash }}>{item.a}</p>
+            </details>
+          ))}
         </div>
 
-        {/* Title & Description */}
-        <h3 className="mb-3 font-['DM_Serif_Display',Georgia,serif] text-2xl leading-tight text-[#061e12] tracking-tight transition-colors duration-200 ease-out group-hover:text-[#0a5c2c] sm:text-3xl md:text-4xl">
-          {test.name}
-        </h3>
-
-        <p className="text-sm sm:text-base leading-relaxed text-zinc-600 line-clamp-3" style={{ textWrap: 'pretty' }}>
-          {test.description}
-        </p>
-
-        {/* Key Outcome Highlights */}
-        {custom.highlights && custom.highlights.length > 0 && (
-          <div className="mt-5 flex flex-wrap gap-2">
-            {custom.highlights.map((h, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-900/[0.07] bg-[#f6faf7] px-3 py-1.5 text-xs font-medium text-zinc-700"
-              >
-                <CheckCircleOutlineIcon sx={{ fontSize: 15 }} className="text-[#0a5c2c]" />
-                {h}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Help choosing — still about the tests. */}
+        <div className="mt-16 rounded-[1.75rem] px-7 py-10 text-center sm:px-12" style={{ backgroundColor: brand.mist }}>
+          <h3 className="font-['DM_Serif_Display',Georgia,serif] text-[1.8rem] leading-tight" style={{ color: brand.ink }}>
+            Not sure which test to take?
+          </h3>
+          <p className="mx-auto mt-3 max-w-md text-[1.02rem] leading-[1.7]" style={{ color: brand.ash }}>
+            Tell us your class and the decision you are facing, and we will point you to the right one.
+          </p>
+          <a
+            href={HELP_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={`mt-7 inline-flex items-center gap-2.5 rounded-full px-7 py-3.5 text-[0.98rem] font-semibold text-white no-underline
+                       transition-[background-color,transform] duration-200 ease-out hover:bg-[#08481f] active:scale-[0.97] ${FOCUS}`}
+            style={{ backgroundColor: brand.green, outlineColor: brand.green }}
+          >
+            <WhatsAppIcon sx={{ fontSize: 20 }} aria-hidden="true" />
+            Ask us on WhatsApp
+          </a>
+        </div>
       </div>
-
-      {/* Footer Row: Quick Preview & Primary Action */}
-      <div className="relative z-10 mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-emerald-900/[0.08] pt-5">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPreview(test);
-          }}
-          className="inline-flex items-center gap-1.5 rounded-full py-2 -my-2 pr-2 text-xs font-semibold text-zinc-500 transition-colors duration-150 ease-out hover:text-[#0a5c2c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-        >
-          <VisibilityIcon sx={{ fontSize: 16 }} className="text-[#8a6a1f]" />
-          Quick preview
-        </button>
-
-        <button
-          onClick={() => onStart(test.slug)}
-          className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-[#051a0d] shadow-[0_10px_24px_-10px_rgba(217,174,60,0.7)] transition-[transform,box-shadow] duration-150 ease-out group-hover:scale-[1.03] group-hover:shadow-[0_14px_30px_-10px_rgba(217,174,60,0.8)] hover:scale-[1.03] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-          style={{ background: 'linear-gradient(135deg, #f7e6ae 0%, #e9c85c 50%, #d9ae3c 100%)' }}
-        >
-          Start Assessment <ArrowForwardIcon sx={{ fontSize: 16 }} />
-        </button>
-      </div>
-    </motion.div>
+    </section>
   );
-});
+}
 
-/* ─── MAIN CATALOG COMPONENT ─────────────────────────────────────────────── */
+/* ─── Page ─────────────────────────────────────────────────────────────────── */
 
 export default function PsychometricTests() {
   const navigate = useNavigate();
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("All Assessments");
-  const [searchTerm, setSearchTerm] = useState("");
   const [previewTest, setPreviewTest] = useState(null);
 
   useEffect(() => {
@@ -410,197 +766,16 @@ export default function PsychometricTests() {
     fetchTests();
   }, []);
 
-  const processedTests = useMemo(() => {
-    let result = [...tests];
-
-    // Filter by Category
-    if (selectedCategory !== "All Assessments") {
-      result = result.filter(t => deriveMeta(t).category === selectedCategory);
-    }
-
-    // Filter by Search Term
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(t => 
-        (t.name && t.name.toLowerCase().includes(q)) ||
-        (t.description && t.description.toLowerCase().includes(q))
-      );
-    }
-
-    return result;
-  }, [tests, selectedCategory, searchTerm]);
+  const startTest = (slug) => navigate(`/test/${slug}`);
 
   return (
-    <div className="min-h-dvh bg-[#04140a] overflow-x-hidden">
-      {/* ─── HERO ─── */}
-      <TestsHero />
-
-      {/* ─── ASSESSMENT CATALOG SECTION ─── */}
-      <section id="pt-grid" className="relative z-10 px-6 py-24 md:py-36 bg-white">
-        {/* Subtle Decorative Ambient Background */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div
-            className="absolute -top-40 right-10 h-96 w-96 rounded-full opacity-30 blur-3xl"
-            style={{ background: 'radial-gradient(circle, rgba(232,184,109,0.15) 0%, transparent 70%)' }}
-          />
-          <div
-            className="absolute bottom-10 left-10 h-96 w-96 rounded-full opacity-25 blur-3xl"
-            style={{ background: 'radial-gradient(circle, rgba(10,92,44,0.1) 0%, transparent 70%)' }}
-          />
-        </div>
-
-        <div className="relative z-10 mx-auto mb-14 max-w-7xl text-center">
-          <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest bg-[#061e12]/5 text-[#0a5c2c] border border-[#061e12]/10 mb-4">
-            Assessments
-          </span>
-
-          <h2 className="font-['DM_Serif_Display',Georgia,serif] text-[clamp(2.4rem,4.5vw,4rem)] leading-[1.08] text-[#061e12] mb-4">
-            Select Your <span className="italic text-[#0a5c2c]">Assessment</span>
-          </h2>
-
-          <p className="mx-auto max-w-2xl text-base sm:text-lg text-[#061e12]/70">
-            Choose a standardized psychometric instrument below to unlock evidence-backed clarity for your academic and professional path.
-          </p>
-
-          {/* Interactive Category Filter Pills */}
-          <div className="mt-8 flex flex-wrap justify-center gap-2.5">
-            {CATEGORIES.map((cat) => {
-              const isActive = selectedCategory === cat;
-              const count = cat === "All Assessments"
-                ? tests.length
-                : tests.filter((t) => deriveMeta(t).category === cat).length;
-
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`relative rounded-full px-6 py-2.5 text-xs sm:text-sm font-bold tracking-wide transition-[background-color,color,transform,box-shadow] duration-200 ease-out active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c] ${
-                    isActive
-                      ? 'bg-[#0a5c2c] text-white shadow-[0_10px_24px_-10px_rgba(10,92,44,0.6)] scale-[1.04]'
-                      : 'bg-[#061e12]/5 text-[#061e12]/70 border border-[#061e12]/10 hover:bg-[#061e12]/10'
-                  }`}
-                >
-                  <span className="relative z-10 flex items-center gap-2">
-                    {cat}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[0.7rem] ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-[#061e12]/10 text-[#061e12]/60'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search Bar */}
-          <div className="mx-auto mt-8 max-w-xl">
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <SearchIcon className="text-[#061e12]/40 transition-colors group-focus-within:text-[#0a5c2c]" />
-              </div>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search assessments by name or description..."
-                className="w-full bg-[#061e12]/5 border border-[#061e12]/10 text-[#061e12] rounded-full pl-11 pr-4 py-3.5 text-sm outline-none transition-all focus:bg-white focus:border-[#0a5c2c]/40 focus:ring-4 focus:ring-[#0a5c2c]/10 placeholder:text-[#061e12]/40"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Bento Grid Layout */}
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 max-w-7xl mx-auto">
-          {loading ? (
-            <>
-              <div className="md:col-span-7 rounded-3xl border border-emerald-900/[0.06] bg-[#f6faf7] animate-pulse min-h-[26rem]" />
-              <div className="md:col-span-5 rounded-3xl border border-emerald-900/[0.06] bg-[#f6faf7] animate-pulse min-h-[26rem]" />
-              <div className="md:col-span-4 rounded-3xl border border-emerald-900/[0.06] bg-[#f6faf7] animate-pulse min-h-[26rem]" />
-              <div className="md:col-span-4 rounded-3xl border border-emerald-900/[0.06] bg-[#f6faf7] animate-pulse min-h-[26rem]" />
-              <div className="md:col-span-4 rounded-3xl border border-emerald-900/[0.06] bg-[#f6faf7] animate-pulse min-h-[26rem]" />
-            </>
-          ) : error || tests.length === 0 ? (
-            /* This block sits inside the white catalogue section — white text on
-               white made the error state invisible. */
-            <div className="col-span-1 md:col-span-12 text-center py-20 bg-[#061e12]/5 rounded-3xl border border-[#061e12]/10">
-              <h3 className="font-['DM_Serif_Display',Georgia,serif] text-2xl text-[#061e12] mb-3">
-                Unable to load assessments
-              </h3>
-              <p className="text-[#061e12]/60 mb-6">Check your network connection or backend server status.</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-8 py-3 rounded-full font-bold text-[#071d12] bg-gradient-to-r from-[#e8b86d] to-[#d9ae3c] shadow-[0_10px_24px_-10px_rgba(217,174,60,0.7)] transition-transform duration-150 ease-out hover:scale-[1.02] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-              >
-                Retry loading
-              </button>
-            </div>
-          ) : (
-            <AnimatePresence mode="popLayout">
-              {processedTests.length === 0 ? (
-                <div className="col-span-1 md:col-span-12 text-center py-20 bg-[#061e12]/5 rounded-3xl border border-[#061e12]/10">
-                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-[#061e12]/5 text-[#061e12]/40">
-                    <SearchIcon fontSize="large" />
-                  </div>
-                  <h3 className="font-['DM_Serif_Display',Georgia,serif] text-2xl text-[#061e12] mb-3">
-                    No matching assessments
-                  </h3>
-                  <p className="text-[#061e12]/60 mb-6">Try adjusting your filters or search term.</p>
-                  <button
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedCategory("All Assessments");
-                    }}
-                    className="px-6 py-2.5 rounded-full font-bold text-white bg-[#0a5c2c] transition-transform duration-150 ease-out hover:scale-[1.02] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-                  >
-                    Clear filters
-                  </button>
-                </div>
-              ) : processedTests.map((test, index) => (
-                <BentoTestCard
-                  key={test.slug}
-                  test={test}
-                  index={index}
-                  onStart={(slug) => navigate(`/test/${slug}`)}
-                  onPreview={(testObj) => setPreviewTest(testObj)}
-                />
-              ))}
-            </AnimatePresence>
-          )}
-        </div>
-      </section>
-
-      {/* ─── FINAL CTA ─── */}
-      <section className="relative py-28 md:py-36 px-6 text-center bg-white">
-        <div className="relative z-10 max-w-4xl mx-auto">
-          <div className="rounded-3xl border border-black/5 bg-[#fcfcfb] p-10 md:p-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)]">
-            <h2 className="font-['DM_Serif_Display',Georgia,serif] text-3xl md:text-5xl text-[#061e12] mb-4">
-              Need Help Choosing the <span className="italic text-[#0a5c2c]">Right Assessment</span>?
-            </h2>
-            <p className="text-base sm:text-lg text-[#061e12]/70 max-w-xl mx-auto mb-8">
-              Speak directly with an expert counsellor to map out which psychometric test aligns with your goals.
-            </p>
-            <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hi! I need help selecting the right psychometric test on Paavan SETU.')}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-3 rounded-full px-9 py-4 text-base font-bold text-[#051a0d] shadow-[0_14px_32px_-12px_rgba(217,174,60,0.7)] transition-transform duration-150 ease-out hover:scale-[1.02] active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a5c2c]"
-              style={{ background: 'linear-gradient(135deg, #f7e6ae 0%, #e9c85c 50%, #d9ae3c 100%)' }}
-            >
-              <PsychologyIcon fontSize="small" /> Talk to a counsellor
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Preview Modal */}
-      <TestPreviewModal
-        test={previewTest}
-        onClose={() => setPreviewTest(null)}
-        onStart={(slug) => navigate(`/test/${slug}`)}
-      />
+    <div className="w-full overflow-x-clip bg-white">
+      <Hero testCount={loading || error ? 0 : tests.length} />
+      <HowItWorks />
+      <Catalogue tests={tests} loading={loading} error={error} onStart={startTest} onPreview={setPreviewTest} />
+      <ReportShows />
+      <Faq />
+      <PreviewDialog test={previewTest} onClose={() => setPreviewTest(null)} onStart={startTest} />
     </div>
   );
 }

@@ -25,6 +25,7 @@ const lightTextFieldStyle = {
 
 const DEFAULT_PATHS = [
   '/',
+  '/dmit',
   '/career-counselling',
   '/books',
   '/schools-workshops',

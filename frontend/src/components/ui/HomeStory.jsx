@@ -74,7 +74,7 @@ function buildChapters({ whyTitle, whyDescription, achievements }) {
         'IQ, EQ, AQ and CQ quotients',
       ],
       benefit: 'Know how your child learns best, and nurture it early.',
-      cta: { label: 'Enquire about DMIT', to: '/contact' },
+      cta: { label: 'Explore manual DMIT', to: '/dmit' },
       visual: { type: 'photo', src: dmitFingerprint, alt: 'A close-up of a fingertip showing its ridges', position: '50% 50%' },
     },
     {

@@ -6,12 +6,22 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { prefersReducedMotion } from '../lib/motion';
 import { colors, fonts } from '../constants/tokens';
+import { DMIT_BOOK_URL, TEST_COUPON_URL } from '../constants/booking';
 import logo from '../assets/logo_final.png';
+
+/* "Book Session" belongs only to the two bookable offerings, and books the
+   one the visitor is reading about: the DMIT page's WhatsApp booking, or a
+   coupon for the psychometric tests. Exact paths, so it stays off the test
+   runner (/test/:slug) — no booking button in the middle of an assessment. */
+const BOOKING_BY_PATH = {
+  '/dmit': { href: DMIT_BOOK_URL, label: 'Book Session' },
+  '/test': { href: TEST_COUPON_URL, label: 'Book Session' },
+};
 
 const navLinks = [
 { label: 'Home', path: '/', short: 'Home' },
-{ label: 'Career Coaching', path: '/career-counselling', short: 'Coaching' },
-{ label: 'Psychometric Test', path: '/test', short: 'Test' },
+{ label: 'DMIT Assessment', path: '/dmit', short: 'DMIT' },
+{ label: 'Psychometric Test', path: '/test', short: 'Psychometric Test' },
 { label: 'Books', path: '/books', short: 'Books' },
 { label: 'Schools & Workshops', path: '/schools-workshops', short: 'Schools & Workshops' },
 { label: 'About Us', path: '/about', short: 'About' },
@@ -25,6 +35,7 @@ export default function Navbar() {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
+  const booking = BOOKING_BY_PATH[location.pathname.replace(/\/+$/, '') || '/'];
 
   /* A link is active on its exact route or any nested route beneath it — the
      Psychometric Test item must stay lit while a student is mid-assessment at
@@ -199,19 +210,23 @@ export default function Navbar() {
             </MotionLink>
           )}
           
-          <MotionLink
-            variants={linkVariants}
-            to="/contact"
-            className="inline-flex shrink-0 items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white no-underline transition-colors duration-200 xl:px-6"
-            style={{
-              fontFamily: fonts.body,
-              background: colors.green,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = colors.blue; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = colors.green; }}
-          >
-            Book Session
-          </MotionLink>
+          {booking && (
+            <motion.a
+              variants={linkVariants}
+              href={booking.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center px-5 py-2.5 rounded-full text-sm font-semibold text-white no-underline transition-colors duration-200 xl:px-6"
+              style={{
+                fontFamily: fonts.body,
+                background: colors.green,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = colors.blue; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = colors.green; }}
+            >
+              {booking.label}
+            </motion.a>
+          )}
         </motion.div>
 
         {/* Mobile Hamburger */}
@@ -337,23 +352,27 @@ export default function Navbar() {
             </Link>
           )}
 
-          <Link
-            to="/contact"
-            onClick={() => setDrawerOpen(false)}
-            className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold text-white no-underline transition-all duration-200"
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              background: colors.green,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.blue;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = colors.green;
-            }}
-          >
-            Book Session
-          </Link>
+          {booking && (
+            <a
+              href={booking.href}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setDrawerOpen(false)}
+              className="flex items-center justify-center w-full py-3.5 rounded-full text-[0.95rem] font-semibold text-white no-underline transition-all duration-200"
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                background: colors.green,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = colors.blue;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = colors.green;
+              }}
+            >
+              {booking.label}
+            </a>
+          )}
         </div>
       </Drawer>
     </>

@@ -8,9 +8,10 @@ import { EASE_OUT } from './TextMotion';
  * Testimonials, one at a time and large. Each quote resolves word by word out
  * of a slight blur, then holds long enough to read.
  *
- * - Auto-advances every 7s, but pauses while the pointer or keyboard focus is
- *   in the section and while the tab is hidden, and never auto-advances under
- *   reduced motion — the arrows are always there.
+ * - Auto-advances every 7s, with a thin timer under the counter, but pauses
+ *   while the pointer or keyboard focus is in the section and while the tab is
+ *   hidden, and never auto-advances under reduced motion — the arrows are
+ *   always there.
  * - Every quote is also rendered, invisible, in the same grid cell, so the
  *   section is always as tall as its longest quote and the page below never
  *   jumps when a short quote replaces a long one.
@@ -139,8 +140,22 @@ export default function HomeTestimonials({ title, testimonials = [] }) {
             >
               <ArrowLeft size={18} />
             </button>
-            <span className="min-w-[3.5rem] text-[0.9rem] tabular-nums" style={{ color: brand.ash }}>
+            <span className="flex min-w-[3.5rem] flex-col items-center gap-2 text-[0.9rem] tabular-nums" style={{ color: brand.ash }}>
               {Math.min(index, count - 1) + 1} / {count}
+              {/* Time left on this quote. Keyed on the quote and the pause, so
+                  it restarts exactly when the autoplay interval does. */}
+              <span aria-hidden="true" className="block h-[2px] w-10 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(15,35,23,0.1)' }}>
+                {!reducedMotion && !paused && (
+                  <motion.span
+                    key={index}
+                    className="block h-full w-full"
+                    style={{ backgroundColor: brand.green, originX: 0 }}
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: AUTOPLAY_MS / 1000, ease: 'linear' }}
+                  />
+                )}
+              </span>
             </span>
             <button
               type="button"

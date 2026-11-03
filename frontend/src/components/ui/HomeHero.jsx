@@ -1,5 +1,12 @@
-import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import React, { useRef } from 'react';
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  useTransform,
+} from 'framer-motion';
 import { brand } from '../../constants/brand';
 import SunGlyph from './SunGlyph';
 import HomeActions from './HomeActions';
@@ -22,6 +29,11 @@ import campusStudy from '../../assets/hero/campus-study.webp';
  * logo, built out of students, a classroom and a counselling session. The
  * logo's arcs radiate from behind the windows' base with a warm sunrise glow,
  * so the photographs and the background read as one picture.
+ *
+ * Once it has landed the hero keeps living: with a mouse, the windows drift
+ * toward the pointer at different depths and the arcs lean the other way; as
+ * the visitor scrolls on, the bridge rises and spreads — the centre fastest —
+ * while the copy lifts away. Both are off under reduced motion.
  *
  * The h1's accessible name is the CMS headline as written; the animated
  * letters and the rotating word are aria-hidden so nothing is announced twice
@@ -49,6 +61,13 @@ const GALLERY = [
 const REVEAL_ORDER = [3, 1, 0, 2, 4];
 const GALLERY_START = 1.15;
 
+/* Per window: how far it follows the pointer (centre nearest the viewer), and
+   how far it rises and spreads, in px, as the hero scrolls away. */
+const DEPTH = [0.55, 0.85, 1.25, 0.85, 0.55];
+const LIFT = [30, 70, 120, 70, 30];
+const SPREAD = [-46, -22, 0, 22, 46];
+const POINTER_PX = 14;
+
 /* ─── Arcs ─────────────────────────────────────────────────────────────────
    Half-disc geometry in a 1000×500 box whose bottom-centre (500,500) is the
    horizon — pinned to the gallery's base, so the arcs always rise from
@@ -68,11 +87,18 @@ const CROSSING_S = 11;
    white field the halo itself is invisible. */
 const TEXT_HALO = '0 0 2px #fff, 0 0 8px #fff, 0 0 18px #fff';
 
-function HeroArcs() {
+function HeroArcs({ pointerX, progress }) {
   const reducedMotion = useReducedMotion();
+  // The wrapper has no height, so its transform origin is the horizon itself.
+  const x = useTransform(pointerX, (v) => v * -10);
+  const scale = useTransform(progress, [0, 1], [1, 1.14]);
 
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 -z-10">
+    <motion.div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 bottom-0 -z-10"
+      style={reducedMotion ? undefined : { x, scale }}
+    >
       {/* Sunrise, centred on the horizon. A CSS gradient fades out on its own,
           where an SVG fill was cut off by its box's edge. */}
       <div
@@ -134,7 +160,7 @@ function HeroArcs() {
           )}
         </g>
       </svg>
-    </div>
+    </motion.div>
   );
 }
 
@@ -147,62 +173,93 @@ function HeroArcs() {
  * Heights come from one CSS variable, so the whole bridge scales together
  * with the viewport height and the centre is always the tallest.
  */
-function HeroGallery() {
+function HeroArch({ photo, index, pointerX, pointerY, progress }) {
   const reducedMotion = useReducedMotion();
+  const delay = GALLERY_START + REVEAL_ORDER[index] * 0.1;
+  const isCentre = index === 2;
+  /* The wrapper owns the drift; the figure and image below own the entrance,
+     so the two never fight over one transform. */
+  const x = useTransform([pointerX, progress], ([px, p]) => px * POINTER_PX * DEPTH[index] + p * SPREAD[index]);
+  const y = useTransform([pointerY, progress], ([py, p]) => py * POINTER_PX * 0.6 * DEPTH[index] - p * LIFT[index]);
 
+  return (
+    <motion.div
+      className={`relative min-w-0 max-w-[15rem] flex-1 ${index === 0 || index === GALLERY.length - 1 ? 'hidden md:block' : ''}`}
+      style={{ height: `calc(var(--arch-h) * ${photo.scale})`, ...(reducedMotion ? {} : { x, y }) }}
+    >
+      {isCentre && (
+        <motion.span
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-[7px] rounded-b-[1.6rem] rounded-t-[999px] border"
+          style={{ borderColor: 'rgba(233,200,92,0.75)' }}
+          initial={reducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: delay + 0.7 }}
+        />
+      )}
+      <motion.figure
+        className="relative m-0 h-full w-full overflow-hidden rounded-b-[1.25rem] rounded-t-[999px] bg-[#e9efe9]"
+        style={{ boxShadow: '0 26px 50px -30px rgba(15,35,23,0.5)' }}
+        initial={reducedMotion ? false : { clipPath: 'inset(100% 0% 0% 0%)' }}
+        animate={{ clipPath: 'inset(0% 0% 0% 0%)' }}
+        transition={{ duration: 1.1, ease: [0.77, 0, 0.175, 1], delay }}
+      >
+        <motion.img
+          src={photo.src}
+          alt={photo.alt}
+          draggable={false}
+          decoding="async"
+          {...(isCentre ? { fetchpriority: 'high' } : {})}
+          className="h-full w-full select-none object-cover"
+          style={{ objectPosition: photo.position }}
+          initial={reducedMotion ? false : { scale: 1.15 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 1.6, ease: EASE_OUT, delay }}
+        />
+      </motion.figure>
+    </motion.div>
+  );
+}
+
+function HeroGallery(motionProps) {
   return (
     <div
       className="flex w-full items-end justify-center gap-2.5 sm:gap-4 lg:gap-5
                  [--arch-h:14rem] sm:[--arch-h:17rem] lg:[--arch-h:clamp(13rem,31vh,19rem)]"
     >
-      {GALLERY.map((photo, i) => {
-        const delay = GALLERY_START + REVEAL_ORDER[i] * 0.1;
-        const isCentre = i === 2;
-        return (
-          <div
-            key={photo.pexels}
-            className={`relative min-w-0 max-w-[15rem] flex-1 ${i === 0 || i === GALLERY.length - 1 ? 'hidden md:block' : ''}`}
-            style={{ height: `calc(var(--arch-h) * ${photo.scale})` }}
-          >
-            {isCentre && (
-              <motion.span
-                aria-hidden="true"
-                className="pointer-events-none absolute -inset-[7px] rounded-b-[1.6rem] rounded-t-[999px] border"
-                style={{ borderColor: 'rgba(233,200,92,0.75)' }}
-                initial={reducedMotion ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.8, delay: delay + 0.7 }}
-              />
-            )}
-            <motion.figure
-              className="relative m-0 h-full w-full overflow-hidden rounded-b-[1.25rem] rounded-t-[999px] bg-[#e9efe9]"
-              style={{ boxShadow: '0 26px 50px -30px rgba(15,35,23,0.5)' }}
-              initial={reducedMotion ? false : { clipPath: 'inset(100% 0% 0% 0%)' }}
-              animate={{ clipPath: 'inset(0% 0% 0% 0%)' }}
-              transition={{ duration: 1.1, ease: [0.77, 0, 0.175, 1], delay }}
-            >
-              <motion.img
-                src={photo.src}
-                alt={photo.alt}
-                draggable={false}
-                decoding="async"
-                {...(isCentre ? { fetchpriority: 'high' } : {})}
-                className="h-full w-full select-none object-cover"
-                style={{ objectPosition: photo.position }}
-                initial={reducedMotion ? false : { scale: 1.15 }}
-                animate={{ scale: 1 }}
-                transition={{ duration: 1.6, ease: EASE_OUT, delay }}
-              />
-            </motion.figure>
-          </div>
-        );
-      })}
+      {GALLERY.map((photo, i) => (
+        <HeroArch key={photo.pexels} photo={photo} index={i} {...motionProps} />
+      ))}
     </div>
   );
 }
 
 export default function HomeHero({ get, rotatingWords = [] }) {
   const reducedMotion = useReducedMotion();
+  const sectionRef = useRef(null);
+
+  /* Pointer position across the viewport, -1…1 on each axis, eased so the
+     drift trails the hand a little. Mouse only: a touch "pointer" would jump
+     the windows to wherever a finger lands. */
+  const rawX = useMotionValue(0);
+  const rawY = useMotionValue(0);
+  const pointerX = useSpring(rawX, { stiffness: 50, damping: 18, mass: 0.6 });
+  const pointerY = useSpring(rawY, { stiffness: 50, damping: 18, mass: 0.6 });
+  const onPointerMove = (e) => {
+    if (reducedMotion || e.pointerType !== 'mouse') return;
+    rawX.set((e.clientX / window.innerWidth) * 2 - 1);
+    rawY.set((e.clientY / window.innerHeight) * 2 - 1);
+  };
+  const onPointerLeave = () => {
+    rawX.set(0);
+    rawY.set(0);
+  };
+
+  /* 0 with the hero filling the viewport, 1 once it has scrolled away. */
+  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ['start start', 'end start'] });
+  const copyOpacity = useTransform(scrollYProgress, [0, 0.55], [1, 0]);
+  const copyY = useTransform(scrollYProgress, [0, 0.55], [0, -70]);
+
   const line1 = get('hero.title.line1');
   const line2 = get('hero.title.line2');
   // The CMS word always leads, so editing it in the admin panel is visible at once.
@@ -219,7 +276,10 @@ export default function HomeHero({ get, rotatingWords = [] }) {
 
   return (
     <section
+      ref={sectionRef}
       aria-labelledby="hero-heading"
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
       className="relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-white px-6 pb-10 pt-28 sm:pt-32 lg:pt-36"
     >
       {/* Hands the hero back to plain white so it meets the next section
@@ -230,68 +290,73 @@ export default function HomeHero({ get, rotatingWords = [] }) {
       />
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center text-center">
-        {get('hero.badge') && (
-          <motion.p
-            {...after(0)}
-            className="mb-6 inline-flex items-center gap-2.5 text-[0.92rem] font-medium"
-            style={{ color: brand.green, textShadow: TEXT_HALO }}
+        <motion.div
+          className="flex w-full flex-col items-center"
+          style={reducedMotion ? undefined : { opacity: copyOpacity, y: copyY }}
+        >
+          {get('hero.badge') && (
+            <motion.p
+              {...after(0)}
+              className="mb-6 inline-flex items-center gap-2.5 text-[0.92rem] font-medium"
+              style={{ color: brand.green, textShadow: TEXT_HALO }}
+            >
+              <SunGlyph className="h-4 w-4 shrink-0" />
+              {get('hero.badge')}
+            </motion.p>
+          )}
+  
+          <h1
+            id="hero-heading"
+            // Sized so the default first line holds on one line from ~1024px up
+            // and the photo windows still clear a 900px fold.
+            className="font-['DM_Serif_Display',Georgia,serif] text-[clamp(2.5rem,5.4vw,4.75rem)]
+                       leading-[1.04] tracking-[-0.025em]"
+            // No TEXT_HALO here: every letter is its own composited layer
+            // during the reveal, so each letter's halo painted over its
+            // neighbour and mottled the strokes.
+            style={{ color: brand.ink }}
           >
-            <SunGlyph className="h-4 w-4 shrink-0" />
-            {get('hero.badge')}
+            <span className="sr-only">{`${line1} ${line2}`}</span>
+            <span aria-hidden="true" className="block">
+              <RevealText text={line1} by="char" trigger="mount" delay={0.1} stagger={0.018} />
+            </span>
+            <span aria-hidden="true" className="relative mt-1 inline-block italic" style={{ color: brand.green }}>
+              <RotatingWord words={words} startDelay={0.55} interval={3200} />
+              {/* A short gold rule under the word, drawn once. Fixed width so it
+                  stays put while the word changes length; centred with
+                  `inset-x-0 mx-auto` because the scaleX tween owns transform. */}
+              <motion.span
+                className="absolute inset-x-0 -bottom-1 mx-auto block h-[3px] w-16 rounded-full sm:w-24"
+                style={{ backgroundColor: brand.gold, originX: 0.5 }}
+                initial={reducedMotion ? false : { scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.8, ease: EASE_OUT, delay: 1.1 }}
+              />
+            </span>
+          </h1>
+  
+          <motion.p
+            {...after(0.95)}
+            className="mx-auto mt-8 max-w-xl text-[1.05rem] leading-[1.7] sm:text-lg"
+            style={{ color: brand.ash, textShadow: TEXT_HALO }}
+          >
+            {get('hero.description')}
           </motion.p>
-        )}
-
-        <h1
-          id="hero-heading"
-          // Sized so the default first line holds on one line from ~1024px up
-          // and the photo windows still clear a 900px fold.
-          className="font-['DM_Serif_Display',Georgia,serif] text-[clamp(2.5rem,5.4vw,4.75rem)]
-                     leading-[1.04] tracking-[-0.025em]"
-          // No TEXT_HALO here: every letter is its own composited layer
-          // during the reveal, so each letter's halo painted over its
-          // neighbour and mottled the strokes.
-          style={{ color: brand.ink }}
-        >
-          <span className="sr-only">{`${line1} ${line2}`}</span>
-          <span aria-hidden="true" className="block">
-            <RevealText text={line1} by="char" trigger="mount" delay={0.1} stagger={0.018} />
-          </span>
-          <span aria-hidden="true" className="relative mt-1 inline-block italic" style={{ color: brand.green }}>
-            <RotatingWord words={words} startDelay={0.55} interval={3200} />
-            {/* A short gold rule under the word, drawn once. Fixed width so it
-                stays put while the word changes length; centred with
-                `inset-x-0 mx-auto` because the scaleX tween owns transform. */}
-            <motion.span
-              className="absolute inset-x-0 -bottom-1 mx-auto block h-[3px] w-16 rounded-full sm:w-24"
-              style={{ backgroundColor: brand.gold, originX: 0.5 }}
-              initial={reducedMotion ? false : { scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.8, ease: EASE_OUT, delay: 1.1 }}
+  
+          <motion.div {...after(1.05)} className="mt-8 w-full sm:w-auto">
+            <HomeActions
+              primaryLabel={get('hero.ctaPrimary')}
+              primaryTo={get('hero.ctaPrimaryLink')}
+              whatsappLabel={get('hero.ctaSecondary')}
             />
-          </span>
-        </h1>
-
-        <motion.p
-          {...after(0.95)}
-          className="mx-auto mt-8 max-w-xl text-[1.05rem] leading-[1.7] sm:text-lg"
-          style={{ color: brand.ash, textShadow: TEXT_HALO }}
-        >
-          {get('hero.description')}
-        </motion.p>
-
-        <motion.div {...after(1.05)} className="mt-8 w-full sm:w-auto">
-          <HomeActions
-            primaryLabel={get('hero.ctaPrimary')}
-            primaryTo={get('hero.ctaPrimaryLink')}
-            whatsappLabel={get('hero.ctaSecondary')}
-          />
+          </motion.div>
         </motion.div>
 
         {/* The arcs hang from this wrapper's foot, so they always rise from
             behind the windows whatever the copy above them does. */}
         <div className="relative mt-12 w-full sm:mt-14">
-          <HeroArcs />
-          <HeroGallery />
+          <HeroArcs pointerX={pointerX} progress={scrollYProgress} />
+          <HeroGallery pointerX={pointerX} pointerY={pointerY} progress={scrollYProgress} />
         </div>
       </div>
 

@@ -149,14 +149,38 @@ export const reportPaymentFailure = (payload) =>
 
 export const adminToken = () => localStorage.getItem('adminToken');
 
-export function adminRequest(path, options = {}) {
-  return request(`${API.base}${path}`, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${adminToken()}`,
-    },
-  });
+/* A stored token only proves someone signed in once — it can expire (7d by
+   default) or be invalidated by a JWT_SECRET rotation or a deactivated admin.
+   The route guard can't tell, so the server's 401 is the source of truth: drop
+   the dead session and send the admin to log in again. Without this the panel
+   renders, every request 401s, and /admin/login bounces straight back to /admin
+   because a token is still present. The flag collapses the burst of parallel
+   401s a dashboard load produces into a single redirect. */
+let adminSessionExpired = false;
+
+function expireAdminSession() {
+  if (adminSessionExpired) return;
+  adminSessionExpired = true;
+  localStorage.removeItem('adminToken');
+  localStorage.removeItem('admin');
+  if (!window.location.pathname.startsWith('/admin/login')) {
+    window.location.replace('/admin/login');
+  }
+}
+
+export async function adminRequest(path, options = {}) {
+  try {
+    return await request(`${API.base}${path}`, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${adminToken()}`,
+      },
+    });
+  } catch (error) {
+    if (error.status === 401) expireAdminSession();
+    throw error;
+  }
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────

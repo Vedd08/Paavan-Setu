@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Book = require('../models/Book');
 const mongoose = require('mongoose');
 const { safeRegex, paginate } = require('../utils/query');
+const { sendOrderEmails } = require('../utils/orderEmails');
 
 // Initialize Razorpay (lazily)
 let razorpay = null;
@@ -17,25 +18,124 @@ const getRazorpay = () => {
   return razorpay;
 };
 
+const clean = (value, max = 200) => String(value == null ? '' : value).trim().slice(0, max);
+
+/**
+ * Validates the checkout form and returns only the fields an order stores, so
+ * a crafted request cannot write anything else onto the order.
+ */
+function readCustomer(input = {}) {
+  const address = input.address || {};
+  const customer = {
+    name: clean(input.name, 100),
+    phone: clean(input.phone, 20).replace(/\D/g, '').slice(-10),
+    email: clean(input.email, 150).toLowerCase(),
+    address: {
+      line1: clean(address.line1),
+      line2: clean(address.line2),
+      city: clean(address.city, 100),
+      state: clean(address.state, 100),
+      pincode: clean(address.pincode, 10).replace(/\D/g, ''),
+    },
+  };
+
+  if (customer.name.length < 2) return { error: 'Please enter your full name' };
+  if (!/^[6-9]\d{9}$/.test(customer.phone)) return { error: 'Please enter a valid 10-digit mobile number' };
+  if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) {
+    return { error: 'Please enter a valid email address' };
+  }
+  if (!customer.address.line1 || !customer.address.city || !customer.address.state) {
+    return { error: 'Please enter your full delivery address' };
+  }
+  if (!/^[1-9]\d{5}$/.test(customer.address.pincode)) return { error: 'Please enter a valid 6-digit PIN code' };
+
+  return { customer };
+}
+
+/**
+ * Marks an order paid exactly once, whichever arrives first: the browser's
+ * verify call or Razorpay's webhook. The `status: { $ne: 'paid' }` guard makes
+ * the claim atomic, so stock is decremented and the owner emailed only once.
+ */
+async function markOrderPaid(razorpayOrderId, { paymentId, signature, method } = {}) {
+  const set = {
+    status: 'paid',
+    'payment.razorpayPaymentId': paymentId,
+    'payment.verified': true,
+    'payment.paidAt': new Date(),
+  };
+  if (signature) set['payment.razorpaySignature'] = signature;
+  if (method) set['payment.method'] = method;
+
+  const order = await Order.findOneAndUpdate(
+    // Only an unpaid order moves to paid. 'failed' is included because a
+    // customer can retry in the same Razorpay window after a declined card;
+    // a refunded or cancelled order is never revived by a replayed signature.
+    { 'payment.razorpayOrderId': razorpayOrderId, status: { $in: ['pending', 'failed'] } },
+    { $set: set },
+    { new: true }
+  );
+
+  if (!order) {
+    const existing = await Order.findOne({ 'payment.razorpayOrderId': razorpayOrderId });
+    return { order: existing, alreadyPaid: Boolean(existing) };
+  }
+
+  // Failures here must not fail the payment — the money has already moved, and
+  // stock can be corrected in the admin panel.
+  try {
+    await Promise.all(
+      order.items.map((item) =>
+        Book.findByIdAndUpdate(item.book, { $inc: { stock: -item.quantity } })
+      )
+    );
+  } catch (stockError) {
+    console.error('Stock update failed for order', order.orderNumber, stockError);
+  }
+
+  sendOrderEmails(order); // fire-and-forget; logs its own failures
+
+  return { order, alreadyPaid: false };
+}
+
+/**
+ * If the Razorpay account has automatic capture turned off, a successful
+ * checkout only *authorises* the payment, and Razorpay refunds it after a few
+ * days unless it is captured. Capturing here makes the shop independent of
+ * that dashboard setting. Returns the payment method for the order record.
+ */
+async function capturePaymentIfNeeded(paymentId) {
+  const instance = getRazorpay();
+  if (!instance || !paymentId) return null;
+  try {
+    const payment = await instance.payments.fetch(paymentId);
+    if (payment.status === 'authorized') {
+      await instance.payments.capture(paymentId, payment.amount, payment.currency);
+    }
+    return payment.method || null;
+  } catch (err) {
+    console.error('Razorpay payment fetch/capture failed:', paymentId, err?.error?.description || err.message);
+    return null;
+  }
+}
+
 // ─── Public Routes ────────────────────────────────────────────────────────────
 
 // POST /api/create-order - Create Razorpay order
 exports.createOrder = async (req, res, next) => {
   try {
-    const { items, customer } = req.body;
+    const { items } = req.body;
 
-    if (!items || !items.length) {
+    if (!Array.isArray(items) || !items.length) {
       return res.status(400).json({
         success: false,
         message: 'No items provided',
       });
     }
 
-    if (!customer || !customer.name || !customer.phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'Customer name and phone are required',
-      });
+    const { customer, error: customerError } = readCustomer(req.body.customer);
+    if (customerError) {
+      return res.status(400).json({ success: false, message: customerError });
     }
 
     if (items.length > 20) {
@@ -108,22 +208,35 @@ exports.createOrder = async (req, res, next) => {
     // Create Razorpay order
     const razorpayInstance = getRazorpay();
     if (!razorpayInstance) {
-      return res.status(500).json({
+      console.error('Checkout blocked: RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set');
+      return res.status(503).json({
         success: false,
-        message: 'Payment gateway not configured',
+        message: 'Online payment is not available right now. Please order on WhatsApp and we will help you.',
       });
     }
 
-    const razorpayOrder = await razorpayInstance.orders.create({
-      amount: Math.round(total * 100), // Convert to paise
-      currency: 'INR',
-      receipt: `order_${Date.now()}`,
-      notes: {
-        customerName: customer.name,
-        customerEmail: customer.email || '',
-        itemCount: orderItems.length,
-      },
-    });
+    let razorpayOrder;
+    try {
+      razorpayOrder = await razorpayInstance.orders.create({
+        amount: Math.round(total * 100), // Convert to paise
+        currency: 'INR',
+        receipt: `order_${Date.now()}`,
+        notes: {
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          customerEmail: customer.email || '',
+          items: orderItems.map((i) => `${i.title} x${i.quantity}`).join(', ').slice(0, 250),
+        },
+      });
+    } catch (gatewayError) {
+      // The Razorpay SDK rejects with { statusCode, error: { description } }
+      // rather than an Error — most often wrong or mismatched keys.
+      console.error('Razorpay order creation failed:', gatewayError?.statusCode, gatewayError?.error?.description || gatewayError?.message);
+      return res.status(502).json({
+        success: false,
+        message: 'Could not reach the payment gateway. Please try again in a moment.',
+      });
+    }
 
     // Create order in database
     const order = await Order.create({
@@ -175,6 +288,14 @@ exports.verifyPayment = async (req, res, next) => {
       });
     }
 
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      console.error('verify-payment: RAZORPAY_KEY_SECRET is not set');
+      return res.status(503).json({
+        success: false,
+        message: 'We could not confirm your payment right now. If money was debited, contact us and we will sort it out.',
+      });
+    }
+
     // Verify signature using HMAC-SHA256
     const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
@@ -196,55 +317,27 @@ exports.verifyPayment = async (req, res, next) => {
       });
     }
 
-    // Claim the order atomically. The `status: 'paid'` guard means a repeated
-    // callback (Razorpay retries, a double-submit, a refreshed tab) matches
-    // nothing the second time, so stock is only ever decremented once.
-    const order = await Order.findOneAndUpdate(
-      {
-        'payment.razorpayOrderId': razorpay_order_id,
-        status: { $ne: 'paid' },
-      },
-      {
-        $set: {
-          status: 'paid',
-          'payment.razorpayPaymentId': razorpay_payment_id,
-          'payment.razorpaySignature': razorpay_signature,
-          'payment.verified': true,
-          'payment.paidAt': new Date(),
-        },
-      },
-      { new: true }
-    );
+    const method = await capturePaymentIfNeeded(razorpay_payment_id);
+
+    // A replay (Razorpay retry, double-submit, refreshed tab, or the webhook
+    // having got there first) still reports success, so the customer is never
+    // told a completed payment failed.
+    const { order, alreadyPaid } = await markOrderPaid(razorpay_order_id, {
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
+      method,
+    });
 
     if (!order) {
-      // Either the order does not exist, or it was already marked paid. Look it
-      // up to tell those apart — a replay should still report success so the
-      // customer is not told their completed payment failed.
-      const existing = await Order.findOne({
-        'payment.razorpayOrderId': razorpay_order_id,
-      });
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
 
-      if (!existing) {
-        return res.status(404).json({ success: false, message: 'Order not found' });
-      }
-
+    if (alreadyPaid) {
       return res.json({
         success: true,
         message: 'Payment already verified',
-        data: { orderNumber: existing.orderNumber, status: existing.status },
+        data: { orderNumber: order.orderNumber, status: order.status },
       });
-    }
-
-    // Update book stock. Failures here must not fail the request — the payment
-    // has already gone through, and stock can be corrected in the admin panel.
-    try {
-      await Promise.all(
-        order.items.map((item) =>
-          Book.findByIdAndUpdate(item.book, { $inc: { stock: -item.quantity } })
-        )
-      );
-    } catch (stockError) {
-      console.error('Stock update failed for order', order.orderNumber, stockError);
     }
 
     res.json({
@@ -294,6 +387,58 @@ exports.handlePaymentFailure = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// POST /api/orders/webhook - Razorpay server-to-server events
+//
+// The safety net for the browser flow: if the customer pays and then closes
+// the tab, loses signal, or the verify call fails, the order is still marked
+// paid here. Configure in Razorpay Dashboard → Settings → Webhooks with the
+// events payment.authorized, payment.captured, order.paid and payment.failed,
+// and the same secret as RAZORPAY_WEBHOOK_SECRET.
+exports.razorpayWebhook = async (req, res) => {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error('Razorpay webhook received but RAZORPAY_WEBHOOK_SECRET is not set');
+    return res.status(503).json({ success: false });
+  }
+
+  // The signature covers the exact bytes Razorpay sent, so verify against the
+  // raw body captured by the JSON parser, not a re-serialised object.
+  const signature = String(req.headers['x-razorpay-signature'] || '');
+  const expected = crypto.createHmac('sha256', secret).update(req.rawBody || '').digest('hex');
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(signature, 'utf8');
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(400).json({ success: false, message: 'Invalid signature' });
+  }
+
+  try {
+    const { event, payload } = req.body || {};
+    const payment = payload?.payment?.entity;
+    const razorpayOrderId = payment?.order_id || payload?.order?.entity?.id;
+
+    if (razorpayOrderId) {
+      if (event === 'payment.authorized') {
+        await capturePaymentIfNeeded(payment.id);
+        await markOrderPaid(razorpayOrderId, { paymentId: payment.id, method: payment.method });
+      } else if (event === 'payment.captured' || event === 'order.paid') {
+        await markOrderPaid(razorpayOrderId, { paymentId: payment?.id, method: payment?.method });
+      } else if (event === 'payment.failed') {
+        await Order.findOneAndUpdate(
+          { 'payment.razorpayOrderId': razorpayOrderId, status: 'pending' },
+          { $set: { status: 'failed', notes: `Payment failed: ${clean(payment?.error_description || 'Unknown error', 500)}` } }
+        );
+      }
+    }
+  } catch (err) {
+    // A 5xx makes Razorpay retry later, which is what we want for a transient
+    // database problem.
+    console.error('Razorpay webhook processing failed:', err);
+    return res.status(500).json({ success: false });
+  }
+
+  res.json({ success: true });
 };
 
 // ─── Admin Routes ─────────────────────────────────────────────────────────────

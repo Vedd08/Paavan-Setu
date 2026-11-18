@@ -61,7 +61,14 @@ app.use(cors({
 }));
 
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
+// Keep the raw bytes alongside the parsed body: the Razorpay webhook signature
+// is computed over the exact payload, which re-serialising cannot reproduce.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    if (req.originalUrl.startsWith('/api/orders/webhook')) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Rate Limiting (simple in-memory) ────────────────────────────────────────
@@ -79,6 +86,9 @@ const isSensitive = (req) =>
   /^\/(contact|bookings|orders|admin\/login|users\/login|users\/register)/.test(req.path);
 
 app.use('/api', (req, res, next) => {
+  // Razorpay sends several signed events per payment from a few shared IPs;
+  // throttling them would delay orders being marked paid.
+  if (req.path === '/orders/webhook') return next();
   const now = Date.now();
   const key = `${req.ip}:${isSensitive(req) ? 'write' : 'read'}`;
   const max = isSensitive(req) ? WRITE_LIMIT_MAX : RATE_LIMIT_MAX;

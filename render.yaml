@@ -23,5 +23,16 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      # Same secret as entered in Razorpay Dashboard → Settings → Webhooks for
+      # https://<api-host>/api/orders/webhook
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      # Where "new paid order" emails go.
+      - key: EMAIL_USER
+        sync: false
+      # Optional: a sender on a Resend-verified domain (e.g.
+      # "Paavan Setu <orders@paavansetu.com>"). Enables customer receipts.
+      - key: ORDER_EMAIL_FROM
+        sync: false
       - key: RESEND_API_KEY
         sync: false

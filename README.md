@@ -146,9 +146,18 @@ JWT_SECRET=your_jwt_secret
 JWT_EXPIRES_IN=7d
 RAZORPAY_KEY_ID=rzp_test_xxxxx
 RAZORPAY_KEY_SECRET=your_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
 RESEND_API_KEY=re_xxxxx
 EMAIL_USER=paavan.setu@gmail.com
+# Optional — sender on a Resend-verified domain; enables customer receipts
+ORDER_EMAIL_FROM="Paavan Setu <orders@paavansetu.com>"
 ```
+
+**Razorpay webhook:** in Razorpay Dashboard → Settings → Webhooks, add
+`https://<your-api-host>/api/orders/webhook` with the events `payment.authorized`,
+`payment.captured`, `order.paid` and `payment.failed`, and use the same secret as
+`RAZORPAY_WEBHOOK_SECRET`. It marks orders paid even if the customer closes the
+tab before the browser confirms.
 
 **Frontend (.env)**
 ```env

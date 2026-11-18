@@ -7,6 +7,7 @@ const orderController = require('../controllers/orderController');
 router.post('/create-order', orderController.createOrder);
 router.post('/verify-payment', orderController.verifyPayment);
 router.post('/payment-failure', orderController.handlePaymentFailure);
+router.post('/webhook', orderController.razorpayWebhook);
 
 // Admin routes
 router.get('/admin', authenticate, orderController.getAllOrders);

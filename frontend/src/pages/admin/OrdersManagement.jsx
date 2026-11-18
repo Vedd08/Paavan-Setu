@@ -262,11 +262,30 @@ export default function OrdersManagement() {
                     <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                       <Typography sx={{ fontWeight: 600, color: 'var(--color-ink)' }}>{order.customer?.name || 'Guest User'}</Typography>
                       <Typography sx={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                        {order.customer?.phone || '—'}
+                        {order.customer?.phone || '—'}{order.customer?.email ? ` · ${order.customer.email}` : ''}
                       </Typography>
+                      {order.customer?.address?.line1 && (
+                        <Typography sx={{ fontSize: '0.78rem', color: '#4b5563', mt: 0.5, maxWidth: 280, lineHeight: 1.45 }}>
+                          {[
+                            order.customer.address.line1,
+                            order.customer.address.line2,
+                            order.customer.address.city,
+                            `${order.customer.address.state || ''} ${order.customer.address.pincode || ''}`.trim(),
+                          ].filter(Boolean).join(', ')}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell sx={{ color: '#4b5563', borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
-                      {order.items?.length || 0} item(s)
+                      {order.items?.length ? order.items.map((item, i) => (
+                        <Typography key={i} sx={{ fontSize: '0.85rem', color: '#4b5563', lineHeight: 1.5 }}>
+                          {item.title || item.book?.title || 'Book'} × {item.quantity}
+                        </Typography>
+                      )) : '0 items'}
+                      {order.payment?.method && (
+                        <Typography sx={{ fontSize: '0.72rem', color: '#9ca3af', textTransform: 'uppercase', mt: 0.25 }}>
+                          via {order.payment.method}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                       <Typography sx={{ fontWeight: 700, color: '#10b981', fontFamily: 'monospace' }}>₹{order.total?.toLocaleString('en-IN')}</Typography>

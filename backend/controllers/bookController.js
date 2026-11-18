@@ -4,12 +4,14 @@ const { safeRegex, paginate } = require('../utils/query');
 // GET /api/books - Public: Get published books
 exports.getPublicBooks = async (req, res, next) => {
   try {
-    const { category, featured } = req.query;
+    const { category, featured, language, newArrival } = req.query;
     const { page, limit, skip } = paginate(req.query, { defaultLimit: 12 });
 
     const query = { isPublished: true };
     if (category) query.categoryName = category;
     if (featured === 'true') query.isFeatured = true;
+    if (language) query.language = language;
+    if (newArrival === 'true') query.isNewArrival = true;
 
     const [total, books] = await Promise.all([
       Book.countDocuments(query),
@@ -154,7 +156,7 @@ exports.toggleBook = async (req, res, next) => {
   try {
     const { field } = req.body; // 'isFeatured' or 'isPublished'
     
-    if (!['isFeatured', 'isPublished'].includes(field)) {
+    if (!['isFeatured', 'isPublished', 'isNewArrival'].includes(field)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid field',

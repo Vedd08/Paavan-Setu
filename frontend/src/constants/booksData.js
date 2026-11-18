@@ -205,12 +205,29 @@ export var BOOKS = [
   }
 ];
 
+/* The two shelves on the Books page. A 'Bilingual' title sits on both. */
+export var BOOK_SHELVES = ['English', 'Gujarati'];
+
+var GUJARATI_SCRIPT = /[઀-૿]/;
+
+export function bookOnShelf(book, shelf) {
+  return book.language === shelf || book.language === 'Bilingual';
+}
+
 export function normalizeBook(book, index) {
   var fromApi = Boolean(book._id);
+  var category = book.category && typeof book.category === 'object' ? book.category._id : book.category;
   return {
     id: book._id || null,
     key: book._id || 'local-' + index,
     purchasable: fromApi && book.stock !== 0,
+    // The bundled fallback has no language field; its Gujarati titles are
+    // written in Gujarati script, so the script decides.
+    language: book.language || (GUJARATI_SCRIPT.test(book.title || '') ? 'Gujarati' : 'English'),
+    categoryId: category || null,
+    categoryName: book.categoryName || '',
+    isNewArrival: Boolean(book.isNewArrival),
+    createdAt: book.createdAt ? new Date(book.createdAt).getTime() : 0,
     title: book.title,
     subtitle: book.subtitle || '',
     description: book.description || book.desc || '',

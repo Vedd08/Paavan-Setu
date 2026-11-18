@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -10,13 +10,15 @@ import ChildCareIcon from '@mui/icons-material/ChildCare';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import PaidIcon from '@mui/icons-material/Paid';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
-import { useBooks, useSettings } from '../hooks/useContent';
+import { useBooks, useCategories, useSettings } from '../hooks/useContent';
 import { colors as T } from '../constants/tokens';
 import { brand, FIELD_GRADIENT, GRAIN } from '../constants/brand';
 import { WHATSAPP_NUMBER } from '../constants/urls';
 
-import { BOOKS, normalizeBook } from '../constants/booksData';
+import { BOOKS, BOOK_SHELVES, bookOnShelf, normalizeBook } from '../constants/booksData';
 import BooksHero from '../components/ui/BooksHero';
 import SectionHead from '../components/ui/SectionHead';
 import SectionEyebrow from '../components/ui/SectionEyebrow';
@@ -300,13 +302,195 @@ function LeadCard({ book, onBuy, whatsappNumber }) {
   );
 }
 
+/* ─── SHELF HELPERS ────────────────────────────────────────────────────── */
+
+const BOOKS_QUERY = { limit: 100 };
+const MAX_NEW_ARRIVALS = 6;
+const FALLBACK_NEW_ARRIVALS = 3;
+
+/**
+ * The admin's "New arrival" picks, newest first. Until anything is flagged
+ * (a fresh deploy, or the bundled fallback) the latest few books stand in, so
+ * the row is never empty.
+ */
+function pickNewArrivals(books) {
+  const newestFirst = [...books].sort((a, b) => b.createdAt - a.createdAt);
+  const flagged = newestFirst.filter((b) => b.isNewArrival);
+  return (flagged.length ? flagged : newestFirst.slice(0, FALLBACK_NEW_ARRIVALS)).slice(0, MAX_NEW_ARRIVALS);
+}
+
+/* Matched by id; older books that only stored a name still match on it. */
+function bookInCategory(book, category) {
+  if (book.categoryId) return book.categoryId === category._id;
+  return Boolean(book.categoryName) && book.categoryName === category.name;
+}
+
+const SHELF_STYLE = {
+  English:  { native: 'English',  caption: 'English books',  tone: T.blue,    tint: 'rgba(23,74,114,0.08)' },
+  Gujarati: { native: 'ગુજરાતી',   caption: 'Gujarati books', tone: '#8a5c0e', tint: 'rgba(176,110,16,0.1)' },
+};
+
+/* Skeleton — mirrors the card grid so loading does not shift layout. */
+function ShelfSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2].map((n) => (
+        <div key={n} className="animate-pulse overflow-hidden rounded-[1.75rem] bg-white" style={{ boxShadow: '0 0 0 1px rgba(15,35,23,0.05)' }}>
+          <div className="m-5 mb-0 aspect-[2/3] rounded-[1.25rem]" style={{ backgroundColor: brand.ivoryDeep }} />
+          <div className="space-y-3 p-6 pt-5">
+            <div className="h-3 w-1/3 rounded" style={{ backgroundColor: brand.ivoryDeep }} />
+            <div className="h-6 w-2/3 rounded" style={{ backgroundColor: brand.ivoryDeep }} />
+            <div className="h-3 w-full rounded" style={{ backgroundColor: brand.ivoryDeep }} />
+            <div className="h-12 w-full rounded-full" style={{ backgroundColor: brand.ivoryDeep }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A grid of book cards. `leadFirst` promotes the first book to a full-width
+ * row (used when the count would otherwise strand one card on the last row);
+ * `newBadge` gives untagged books a "New" chip; `animateOnMount` staggers the
+ * cards in whenever the grid remounts (switching tab or sub-category), since
+ * whileInView only fires once.
+ */
+function BookGrid({ books, leadFirst = false, newBadge = false, animateOnMount = false, onBuy, whatsappNumber }) {
+  const motionProps = animateOnMount
+    ? { initial: 'hidden', animate: 'visible' }
+    : { initial: 'hidden', whileInView: 'visible', viewport: { once: true, margin: '0px 0px -15% 0px' } };
+
+  return (
+    <motion.div
+      className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7"
+      variants={containerVariants}
+      {...motionProps}
+    >
+      {books.map((raw, i) => {
+        const book = newBadge && !raw.tag ? { ...raw, tag: 'New' } : raw;
+        return leadFirst && i === 0 ? (
+          <div key={book.key} className="sm:col-span-2 lg:col-span-3">
+            <LeadCard book={book} onBuy={onBuy} whatsappNumber={whatsappNumber} />
+          </div>
+        ) : (
+          <BookCard key={book.key} book={book} onBuy={onBuy} whatsappNumber={whatsappNumber} />
+        );
+      })}
+    </motion.div>
+  );
+}
+
+/** One of the two big language tabs. */
+function LanguageTab({ shelf, count, selected, onSelect }) {
+  const s = SHELF_STYLE[shelf];
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      aria-controls={`bk-panel-${shelf}`}
+      onClick={onSelect}
+      className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-[1.75rem] p-6 text-left transition-all duration-500 hover:-translate-y-1 sm:p-8"
+      style={{
+        backgroundColor: selected ? brand.ink : '#ffffff',
+        boxShadow: selected
+          ? `0 0 0 2px ${brand.gold}, 0 24px 50px -30px rgba(15,35,23,0.7)`
+          : '0 0 0 1px rgba(15,35,23,0.07), 0 16px 40px -34px rgba(15,35,23,0.5)',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full blur-3xl transition-opacity duration-500"
+        style={{ background: selected ? 'rgba(233,200,92,0.22)' : s.tint, opacity: selected ? 1 : 0.9 }}
+      />
+      <span className="relative min-w-0">
+        <span
+          className="block text-[0.72rem] font-bold uppercase tracking-[0.16em]"
+          style={{ color: selected ? brand.goldLight : s.tone }}
+        >
+          {s.caption}
+        </span>
+        <span
+          className="mt-1.5 block font-['DM_Serif_Display',Georgia,serif] text-[clamp(2rem,4vw,2.8rem)] leading-[1.05]"
+          style={{ color: selected ? '#ffffff' : brand.ink }}
+        >
+          {s.native}
+        </span>
+        <span className="mt-2 block text-[0.92rem]" style={{ color: selected ? 'rgba(253,250,243,0.72)' : brand.ash }}>
+          {count} {count === 1 ? 'book' : 'books'}
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full transition-transform duration-500 group-hover:translate-x-1"
+        style={{
+          backgroundColor: selected ? brand.gold : s.tint,
+          color: selected ? brand.ink : s.tone,
+          transform: selected ? 'rotate(90deg)' : undefined,
+        }}
+      >
+        <ArrowForwardIcon sx={{ fontSize: 22 }} />
+      </span>
+    </button>
+  );
+}
+
+/** A sub-category pill under the selected language. */
+function SubcategoryChip({ label, icon, count, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-5 text-[0.92rem] font-semibold transition-all duration-300 hover:-translate-y-0.5"
+      style={{
+        backgroundColor: selected ? brand.ink : '#ffffff',
+        borderColor: selected ? brand.ink : 'rgba(15,35,23,0.14)',
+        color: selected ? '#ffffff' : brand.ink,
+      }}
+    >
+      {icon && <span aria-hidden="true">{icon}</span>}
+      {label}
+      <span
+        className="rounded-full px-2 py-0.5 text-[0.72rem] font-bold tabular-nums"
+        style={{
+          backgroundColor: selected ? 'rgba(255,255,255,0.16)' : brand.ivoryDeep,
+          color: selected ? '#ffffff' : brand.ash,
+        }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
 /* ─── PAGE ─────────────────────────────────────────────────────────────── */
 
 export default function Books() {
-  const booksQuery = useBooks(BOOKS);
+  // The page filters client-side, so ask for the whole catalogue rather than
+  // the API's default first page of 12.
+  const booksQuery = useBooks(BOOKS, BOOKS_QUERY);
+  const categoriesQuery = useCategories();
   const settings = useSettings();
-  const books = (booksQuery.data || []).map(normalizeBook);
+  const books = useMemo(() => (booksQuery.data || []).map(normalizeBook), [booksQuery.data]);
+  const categories = categoriesQuery.data || [];
   const [checkoutBook, setCheckoutBook] = useState(null);
+  const [shelf, setShelf] = useState(null);           // 'English' | 'Gujarati' | null
+  const [subcategory, setSubcategory] = useState('all'); // category _id or 'all'
+
+  const newArrivals = useMemo(() => pickNewArrivals(books), [books]);
+
+  const shelfBooks = shelf ? books.filter((b) => bookOnShelf(b, shelf)) : [];
+  const shelfCategories = shelf
+    ? categories
+        .filter((c) => (c.language || 'All') === shelf || (c.language || 'All') === 'All')
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : [];
+  const activeCategory = shelfCategories.find((c) => c._id === subcategory) || null;
+  const visibleBooks = activeCategory
+    ? shelfBooks.filter((b) => bookInCategory(b, activeCategory))
+    : shelfBooks;
 
   const whatsappNumber = settings.get('contact.whatsapp', '916351113766');
 
@@ -315,11 +499,194 @@ export default function Books() {
       {/* ══ HERO ══════════════════════════════════════════════════════════ */}
       <BooksHero />
 
-      {/* ══ WHY OUR BOOKS — paper ═════════════════════════════════════════ */}
+      {/* ══ NEW ARRIVALS — only the latest titles, not the whole catalogue ══ */}
+      <section
+        id="books-collection"
+        className="relative isolate overflow-hidden bg-white px-6 py-24 md:py-32"
+        aria-labelledby="bk-new-heading"
+      >
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(50% 40% at 6% 92%, rgba(233,200,92,0.12) 0%, rgba(233,200,92,0) 62%)' }} />
+        </div>
+
+        <motion.div
+          className="relative z-10 mx-auto max-w-7xl"
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "0px 0px -15% 0px" }}
+        >
+          <motion.div variants={childVariants} className="mb-12 flex flex-col gap-6 md:mb-16 md:flex-row md:items-end md:justify-between">
+            <SectionHead
+              id="bk-new-heading"
+              title="Fresh off the"
+              accent="press"
+              accentColor={brand.green}
+              lead="Our newest titles. Looking for something else? Browse every English and Gujarati book below."
+            />
+            {!booksQuery.loading && books.length > newArrivals.length && (
+              <a
+                href="#books-browse"
+                className="inline-flex shrink-0 items-center gap-2 self-start whitespace-nowrap rounded-full border px-6 py-3 text-[0.95rem] font-semibold no-underline transition-all duration-300 hover:-translate-y-0.5 md:self-auto"
+                style={{ borderColor: 'rgba(15,35,23,0.18)', color: brand.ink }}
+              >
+                See all {books.length} books
+                <ArrowDownwardIcon sx={{ fontSize: 18 }} aria-hidden="true" />
+              </a>
+            )}
+          </motion.div>
+
+          {booksQuery.loading && <ShelfSkeleton />}
+
+          {!booksQuery.loading && newArrivals.length > 0 && (
+            <BookGrid
+              books={newArrivals}
+              leadFirst={newArrivals.length % 3 === 1}
+              onBuy={setCheckoutBook}
+              whatsappNumber={whatsappNumber}
+              newBadge
+            />
+          )}
+        </motion.div>
+      </section>
+
+      {/* ══ BROWSE — English / Gujarati, then the admin's sub-categories ═══ */}
+      <section
+        id="books-browse"
+        className="relative isolate scroll-mt-20 overflow-hidden px-6 py-24 md:py-32"
+        aria-labelledby="bk-browse-heading"
+        style={{ backgroundColor: brand.ivoryLit }}
+      >
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute inset-0 opacity-[0.04] mix-blend-multiply" style={{ backgroundImage: GRAIN, backgroundSize: '160px 160px' }} />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(48% 40% at 94% 6%, rgba(233,200,92,0.16) 0%, rgba(233,200,92,0) 62%)' }} />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-7xl">
+          <SectionHead
+            id="bk-browse-heading"
+            title="Browse by"
+            accent="language"
+            accentColor={T.amber}
+            lead="Pick a language to explore its collections. Every book is available for individual purchase or bulk school orders."
+            className="mb-10 md:mb-14"
+          />
+
+          {/* Language tabs */}
+          <div role="tablist" aria-label="Book language" className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+            {BOOK_SHELVES.map((s) => (
+              <LanguageTab
+                key={s}
+                shelf={s}
+                count={books.filter((b) => bookOnShelf(b, s)).length}
+                selected={shelf === s}
+                onSelect={() => { setShelf(s); setSubcategory('all'); }}
+              />
+            ))}
+          </div>
+
+          <AnimatePresence mode="wait">
+            {!shelf ? (
+              <motion.p
+                key="prompt"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-10 text-center text-[1rem]"
+                style={{ color: brand.ash }}
+              >
+                Choose English or Gujarati above to see its collections.
+              </motion.p>
+            ) : (
+              <motion.div
+                key={shelf}
+                id={`bk-panel-${shelf}`}
+                role="tabpanel"
+                aria-label={`${shelf} books`}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                className="mt-10 md:mt-12"
+              >
+                {/* Sub-categories, as added in the admin panel. */}
+                {shelfCategories.length > 0 && (
+                  <div className="-mx-6 mb-10 overflow-x-auto px-6 pb-2 sm:mx-0 sm:overflow-visible sm:px-0">
+                    <div role="group" aria-label={`${shelf} collections`} className="flex w-max gap-2.5 sm:w-auto sm:flex-wrap">
+                      <SubcategoryChip
+                        label={`All ${shelf}`}
+                        count={shelfBooks.length}
+                        selected={subcategory === 'all'}
+                        onClick={() => setSubcategory('all')}
+                      />
+                      {shelfCategories.map((c) => (
+                        <SubcategoryChip
+                          key={c._id}
+                          label={c.name}
+                          icon={c.icon}
+                          count={shelfBooks.filter((b) => bookInCategory(b, c)).length}
+                          selected={subcategory === c._id}
+                          onClick={() => setSubcategory(c._id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeCategory?.description && (
+                  <p className="-mt-4 mb-8 max-w-2xl text-[1rem] leading-relaxed" style={{ color: brand.ash }}>
+                    {activeCategory.description}
+                  </p>
+                )}
+
+                {visibleBooks.length > 0 ? (
+                  <BookGrid
+                    key={`${shelf}-${subcategory}`}
+                    books={visibleBooks}
+                    onBuy={setCheckoutBook}
+                    whatsappNumber={whatsappNumber}
+                    animateOnMount
+                  />
+                ) : (
+                  <div className="rounded-[1.75rem] bg-white px-6 py-16 text-center" style={{ boxShadow: '0 0 0 1px rgba(15,35,23,0.06)' }}>
+                    <p className="font-['DM_Serif_Display',Georgia,serif] text-2xl" style={{ color: brand.ink }}>
+                      Coming soon
+                    </p>
+                    <p className="mx-auto mt-2 max-w-md text-[0.98rem] leading-relaxed" style={{ color: brand.ash }}>
+                      We&rsquo;re adding books to this collection. Message us and we&rsquo;ll tell you when they arrive.
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Help choosing — the quiet ask under the shelf. */}
+          <div className="mt-16 flex flex-col items-center gap-4 text-center">
+            <p className="text-[1.05rem] leading-relaxed" style={{ color: brand.ash }}>
+              Not sure which book fits your child&rsquo;s age?
+            </p>
+            <a
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hello, I'd like help choosing the right book for my child.")}`}
+              target="_blank"
+              rel="noreferrer"
+              className="group inline-flex items-center gap-3 rounded-full py-1 pr-3 text-[0.95rem] font-semibold no-underline transition-colors duration-300"
+              style={{ color: brand.green }}
+            >
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white shadow-[0_4px_14px_-4px_rgba(10,92,44,0.3)] transition-transform duration-300 group-hover:-translate-y-0.5" style={{ border: '1px solid rgba(168,128,31,0.35)' }}>
+                <WhatsAppIcon sx={{ fontSize: 18 }} aria-hidden="true" />
+              </span>
+              Ask us on WhatsApp
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ WHY OUR BOOKS — white, after the shelf ═════════════════════ */}
       <section
         className="relative isolate overflow-hidden px-6 py-24 md:py-36"
         aria-labelledby="bk-why-heading"
-        style={{ backgroundColor: brand.ivoryLit }}
+        style={{ backgroundColor: '#ffffff' }}
       >
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-0 opacity-[0.04] mix-blend-multiply" style={{ backgroundImage: GRAIN, backgroundSize: '160px 160px' }} />
@@ -384,102 +751,6 @@ export default function Books() {
               );
             })}
           </div>
-        </motion.div>
-      </section>
-
-      {/* ══ THE SHELF — full collection ═══════════════════════════════════ */}
-      <section
-        id="books-collection"
-        className="relative isolate overflow-hidden bg-white px-6 py-24 md:py-36"
-        aria-labelledby="bk-collection-heading"
-      >
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(50% 40% at 6% 92%, rgba(233,200,92,0.12) 0%, rgba(233,200,92,0) 62%)' }} />
-        </div>
-
-        <motion.div 
-          className="relative z-10 mx-auto max-w-7xl"
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "0px 0px -15% 0px" }}
-        >
-          <motion.div variants={childVariants}>
-            <SectionHead
-              id="bk-collection-heading"
-              title="Browse the"
-              accent="collection"
-              accentColor={brand.green}
-              lead="Each book is available for individual purchase or bulk school orders."
-              className="mb-12 md:mb-16"
-            />
-          </motion.div>
-
-          {/* Skeleton — mirrors the card grid so loading does not shift layout. */}
-          {booksQuery.loading && (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((n) => (
-                <div key={n} className="animate-pulse overflow-hidden rounded-[1.75rem] bg-white" style={{ boxShadow: '0 0 0 1px rgba(15,35,23,0.05)' }}>
-                  <div className="m-5 mb-0 aspect-[2/3] rounded-[1.25rem]" style={{ backgroundColor: brand.ivoryDeep }} />
-                  <div className="space-y-3 p-6 pt-5">
-                    <div className="h-3 w-1/3 rounded" style={{ backgroundColor: brand.ivoryDeep }} />
-                    <div className="h-6 w-2/3 rounded" style={{ backgroundColor: brand.ivoryDeep }} />
-                    <div className="h-3 w-full rounded" style={{ backgroundColor: brand.ivoryDeep }} />
-                    <div className="h-3 w-4/5 rounded" style={{ backgroundColor: brand.ivoryDeep }} />
-                    <div className="h-12 w-full rounded-full" style={{ backgroundColor: brand.ivoryDeep }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!booksQuery.loading && books.length > 0 && (
-            <>
-              <motion.div 
-                className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7"
-                variants={containerVariants}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "0px 0px -15% 0px" }}
-              >
-                {books.map((book, i) =>
-                  i === 0 ? (
-                    /* Full-width lead row, then the shelf: 10 books becomes
-                       1 + 3×3 instead of 3×3+1 with a stranded card. */
-                    <div key={book.key} className="sm:col-span-2 lg:col-span-3">
-                      <LeadCard book={book} onBuy={setCheckoutBook} whatsappNumber={whatsappNumber} />
-                    </div>
-                  ) : (
-                    <BookCard
-                      key={book.key}
-                      book={book}
-                      onBuy={setCheckoutBook}
-                      whatsappNumber={whatsappNumber}
-                    />
-                  )
-                )}
-              </motion.div>
-
-              {/* Help choosing — the quiet ask under the shelf. */}
-              <motion.div variants={childVariants} className="mt-16 flex flex-col items-center gap-4 text-center">
-                <p className="text-[1.05rem] leading-relaxed" style={{ color: brand.ash }}>
-                  Not sure which book fits your child&rsquo;s age?
-                </p>
-                <a
-                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hello, I'd like help choosing the right book for my child.")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group inline-flex items-center gap-3 rounded-full py-1 pr-3 text-[0.95rem] font-semibold no-underline transition-colors duration-300"
-                  style={{ color: brand.green }}
-                >
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white shadow-[0_4px_14px_-4px_rgba(10,92,44,0.3)] transition-transform duration-300 group-hover:-translate-y-0.5" style={{ border: '1px solid rgba(168,128,31,0.35)' }}>
-                    <WhatsAppIcon sx={{ fontSize: 18 }} aria-hidden="true" />
-                  </span>
-                  Ask us on WhatsApp
-                </a>
-              </motion.div>
-            </>
-          )}
         </motion.div>
       </section>
 

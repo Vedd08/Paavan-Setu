@@ -34,14 +34,25 @@ const lightTextFieldStyle = {
 };
 
 const emptyBook = {
-  title: '', subtitle: '', description: '', authorName: '', categoryName: '',
+  title: '', subtitle: '', description: '', authorName: '', categoryId: '',
   price: '', salePrice: '', isbn: '', pages: '', audience: '', stock: '',
-  tag: '', language: 'English', isFeatured: false, isPublished: true,
+  tag: '', language: 'English', isFeatured: false, isPublished: true, isNewArrival: true,
   coverImage: '', slug: '', accentBg: '', accentBorder: '', accentCol: ''
 };
 
+/* A sub-category is offered for a book when it sits on that book's shelf:
+   its own language, or 'All'. A bilingual book can use either shelf's. */
+const categoryFitsLanguage = (category, language) => {
+  const shelf = category.language || 'All';
+  return shelf === 'All' || language === 'Bilingual' || shelf === language;
+};
+
+const categoryIdOf = (book) =>
+  (book.category && typeof book.category === 'object' ? book.category._id : book.category) || '';
+
 export default function BooksManagement() {
   const [books, setBooks] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
@@ -118,7 +129,9 @@ export default function BooksManagement() {
 
   const fetchBooks = async () => {
     try {
-      const data = await adminRequest('/api/books/admin/all');
+      // The list filters and sorts client-side, so ask for the whole catalogue
+      // rather than the API's default first page of 20.
+      const data = await adminRequest('/api/books/admin/all?limit=100');
       setBooks(Array.isArray(data) ? data : data?.data || []);
       setError('');
     } catch (err) {
@@ -128,7 +141,23 @@ export default function BooksManagement() {
     }
   };
 
-  useEffect(() => { fetchBooks(); }, []);
+  const fetchCategories = async () => {
+    try {
+      const data = await adminRequest('/api/categories/admin');
+      setCategories(Array.isArray(data) ? data : data?.data || []);
+    } catch {
+      // The book form still works without the list; the picker is just empty.
+    }
+  };
+
+  useEffect(() => { fetchBooks(); fetchCategories(); }, []);
+
+  const categoryOptions = useMemo(
+    () => categories
+      .filter((c) => categoryFitsLanguage(c, formData.language))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [categories, formData.language]
+  );
 
   const handleOpen = (book = null) => {
     if (book) {
@@ -138,7 +167,10 @@ export default function BooksManagement() {
         subtitle: book.subtitle || '',
         description: book.description || '',
         authorName: book.authorName || '',
-        categoryName: book.categoryName || '',
+        // Older books carry only a category name; match it to a category.
+        categoryId: categoryIdOf(book)
+          || categories.find((c) => c.name === book.categoryName && categoryFitsLanguage(c, book.language || 'English'))?._id
+          || '',
         price: book.price ?? '',
         salePrice: book.salePrice ?? '',
         isbn: book.isbn || '',
@@ -149,6 +181,7 @@ export default function BooksManagement() {
         language: book.language || 'English',
         isFeatured: book.isFeatured || false,
         isPublished: book.isPublished ?? true,
+        isNewArrival: book.isNewArrival || false,
         coverImage: book.coverImage || '',
         slug: book.slug || '',
         accentBg: book.accent?.bg || '',
@@ -171,6 +204,8 @@ export default function BooksManagement() {
       return;
     }
 
+    const category = categories.find((c) => c._id === formData.categoryId) || null;
+
     setSaving(true);
     setError('');
     try {
@@ -184,7 +219,8 @@ export default function BooksManagement() {
             subtitle: formData.subtitle,
             description: formData.description,
             authorName: formData.authorName,
-            categoryName: formData.categoryName,
+            category: category ? category._id : null,
+            categoryName: category ? category.name : '',
             price,
             salePrice,
             isbn: formData.isbn,
@@ -195,6 +231,7 @@ export default function BooksManagement() {
             language: formData.language,
             isFeatured: formData.isFeatured,
             isPublished: formData.isPublished,
+            isNewArrival: formData.isNewArrival,
             coverImage: formData.coverImage,
             slug: formData.slug,
             accent: {
@@ -276,6 +313,7 @@ export default function BooksManagement() {
       <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Skeleton width={100} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></TableCell>
       <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Skeleton width={60} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></TableCell>
       <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Skeleton width={40} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></TableCell>
+      <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Skeleton variant="circular" width={32} height={20} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></TableCell>
       <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Skeleton variant="circular" width={32} height={20} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></TableCell>
       <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Skeleton variant="circular" width={32} height={20} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></TableCell>
       <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}><Box sx={{ display: 'flex', gap: 1 }}><Skeleton variant="circular" width={24} height={24} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /><Skeleton variant="circular" width={24} height={24} sx={{ bgcolor: 'rgba(0,0,0,0.06)' }} /></Box></TableCell>
@@ -392,6 +430,7 @@ export default function BooksManagement() {
               <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Author</TableCell>
               <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Price</TableCell>
               <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Stock</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>New Arrival</TableCell>
               <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Featured</TableCell>
               <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Published</TableCell>
               <TableCell sx={{ fontWeight: 700, color: 'var(--color-ink)', borderBottom: '1px solid rgba(0,0,0,0.05)', width: 100 }} align="right">Actions</TableCell>
@@ -406,7 +445,7 @@ export default function BooksManagement() {
               </>
             ) : books.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 10, borderBottom: 0 }}>
+                <TableCell colSpan={8} sx={{ textAlign: 'center', py: 10, borderBottom: 0 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <Box sx={{ p: 3, bgcolor: 'var(--color-paper-muted)', borderRadius: '50%', color: 'var(--color-ink)' }}>
                       <MenuBookIcon sx={{ fontSize: 48 }} />
@@ -430,7 +469,7 @@ export default function BooksManagement() {
               </TableRow>
             ) : processedBooks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 10, borderBottom: 0 }}>
+                <TableCell colSpan={8} sx={{ textAlign: 'center', py: 10, borderBottom: 0 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: 'var(--color-ink)', mb: 1 }}>No books found</Typography>
                   <Typography sx={{ color: '#6b7280' }}>Adjust your search or filters to see results.</Typography>
                   <Button variant="outlined" onClick={() => { setSearchTerm(''); setCategoryFilter('All'); setStockFilter('All'); setSortOrder('newest'); }} sx={{ mt: 2, color: 'var(--color-ink)', borderColor: 'var(--color-green)' }}>Clear Filters</Button>
@@ -455,6 +494,9 @@ export default function BooksManagement() {
                       )}
                       <Box>
                         <Typography sx={{ fontWeight: 600, color: 'var(--color-ink)' }}>{book.title}</Typography>
+                        <Typography sx={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                          {book.language || 'English'}{book.categoryName ? ` · ${book.categoryName}` : ''}
+                        </Typography>
                         {book.tag && (
                           <Chip label={book.tag} size="small" sx={{ mt: 0.5, fontSize: '0.7rem', height: 20, bgcolor: 'rgba(16, 185, 129, 0.15)', color: 'var(--color-ink)', borderColor: 'var(--color-green)' }} variant="outlined" />
                         )}
@@ -485,6 +527,18 @@ export default function BooksManagement() {
                         <Chip label="In stock" size="small" sx={{ height: 20, fontSize: '0.68rem', bgcolor: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', fontWeight: 600 }} />
                       )}
                     </Box>
+                  </TableCell>
+                  <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
+                    <Switch
+                      checked={Boolean(book.isNewArrival)}
+                      onChange={() => handleToggle(book._id, 'isNewArrival')}
+                      size="small"
+                      inputProps={{ 'aria-label': `Show ${book.title} in New Arrivals` }}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': { color: 'var(--color-green)' },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'var(--color-green)' },
+                      }}
+                    />
                   </TableCell>
                   <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                     <Switch
@@ -563,7 +617,59 @@ export default function BooksManagement() {
                 <TextField label="Title *" value={formData.title} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
                 <TextField label="Subtitle" value={formData.subtitle} onChange={e => setFormData(p => ({ ...p, subtitle: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
                 <TextField label="Author Name" value={formData.authorName} onChange={e => setFormData(p => ({ ...p, authorName: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
-                <TextField label="Category" value={formData.categoryName} onChange={e => setFormData(p => ({ ...p, categoryName: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
+                <Box />
+                <TextField
+                  select
+                  label="Language *"
+                  value={formData.language}
+                  onChange={e => {
+                    const language = e.target.value;
+                    setFormData(p => {
+                      const current = categories.find(c => c._id === p.categoryId);
+                      const keep = current && categoryFitsLanguage(current, language);
+                      return { ...p, language, categoryId: keep ? p.categoryId : '' };
+                    });
+                  }}
+                  fullWidth
+                  helperText="English and Gujarati books get their own tab on the Books page"
+                  sx={lightTextFieldStyle}
+                >
+                  {['English', 'Gujarati', 'Bilingual', 'Hindi'].map(l => (
+                    <MenuItem key={l} value={l} sx={{ bgcolor: '#ffffff', color: 'var(--color-ink)', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.2)' } }}>{l}</MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Sub-category"
+                  value={formData.categoryId}
+                  onChange={e => setFormData(p => ({ ...p, categoryId: e.target.value }))}
+                  fullWidth
+                  helperText={categoryOptions.length
+                    ? 'Add or rename sub-categories under Categories'
+                    : `No ${formData.language} sub-categories yet — add them under Categories`}
+                  sx={lightTextFieldStyle}
+                >
+                  <MenuItem value="" sx={{ bgcolor: '#ffffff', color: '#6b7280', fontStyle: 'italic' }}>None</MenuItem>
+                  {categoryOptions.map(c => (
+                    <MenuItem key={c._id} value={c._id} sx={{ bgcolor: '#ffffff', color: 'var(--color-ink)', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.2)' } }}>
+                      {c.icon ? `${c.icon} ` : ''}{c.name}{c.isActive === false ? ' (hidden)' : ''}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, borderRadius: '12px', bgcolor: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  <Switch
+                    checked={formData.isNewArrival}
+                    onChange={e => setFormData(p => ({ ...p, isNewArrival: e.target.checked }))}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': { color: 'var(--color-green)' },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'var(--color-green)' },
+                    }}
+                  />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--color-ink)' }}>Show in New Arrivals</Typography>
+                    <Typography sx={{ fontSize: '0.8rem', color: '#6b7280' }}>Highlighted at the top of the Books page. Other books are found through the English / Gujarati tabs.</Typography>
+                  </Box>
+                </Box>
                 <TextField
                   label="Description *"
                   value={formData.description}
@@ -627,11 +733,6 @@ export default function BooksManagement() {
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <TextField label="ISBN" value={formData.isbn} onChange={e => setFormData(p => ({ ...p, isbn: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
                 <TextField label="Pages" type="number" value={formData.pages} onChange={e => setFormData(p => ({ ...p, pages: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
-                <TextField select label="Language" value={formData.language} onChange={e => setFormData(p => ({ ...p, language: e.target.value }))} fullWidth sx={lightTextFieldStyle}>
-                  {['English', 'Hindi', 'Gujarati', 'Bilingual'].map(l => (
-                    <MenuItem key={l} value={l} sx={{ bgcolor: '#ffffff', color: 'var(--color-ink)', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.2)' } }}>{l}</MenuItem>
-                  ))}
-                </TextField>
                 <TextField label="Audience" value={formData.audience} onChange={e => setFormData(p => ({ ...p, audience: e.target.value }))} fullWidth sx={lightTextFieldStyle} />
               </Box>
             </Box>

@@ -28,8 +28,21 @@ const lightTextFieldStyle = {
   '& .MuiInputLabel-root.Mui-focused': { color: 'var(--color-ink)', fontWeight: 600 },
 };
 
+/* Which Books-page tab a category appears under as a sub-category. */
+const LANGUAGE_OPTIONS = [
+  { value: 'English', label: 'English books' },
+  { value: 'Gujarati', label: 'Gujarati books' },
+  { value: 'All', label: 'Both English & Gujarati' },
+];
+const LANGUAGE_CHIP = {
+  English: { bg: '#eff6ff', col: '#1d4ed8', border: '#bfdbfe', label: 'English' },
+  Gujarati: { bg: '#fff7ed', col: '#c2410c', border: '#fed7aa', label: 'Gujarati' },
+  All: { bg: '#f0fdf4', col: '#15803d', border: '#bbf7d0', label: 'Both' },
+};
+
 const emptyCategory = {
   name: '',
+  language: 'English',
   description: '',
   color: '',
   icon: '',
@@ -50,6 +63,7 @@ export default function CategoriesManagement() {
   // Filter & Sort State
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [languageFilter, setLanguageFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('order_asc');
 
   const fetchCategories = async () => {
@@ -66,14 +80,12 @@ export default function CategoriesManagement() {
 
   useEffect(() => { fetchCategories(); }, []);
 
-  const generateSlug = (name) =>
-    name.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
-
   const handleOpen = (category = null) => {
     if (category) {
       setEditingCategory(category);
       setFormData({
         name: category.name || '',
+        language: category.language || 'All',
         description: category.description || '',
         color: category.color || '',
         icon: category.icon || '',
@@ -91,9 +103,10 @@ export default function CategoriesManagement() {
     setSaving(true);
     setError('');
     try {
+      // The slug is derived on the server (it handles Gujarati names).
       const payload = {
         name: formData.name,
-        slug: editingCategory?.slug || generateSlug(formData.name),
+        language: formData.language,
         description: formData.description,
         color: formData.color,
         icon: formData.icon,
@@ -143,15 +156,7 @@ export default function CategoriesManagement() {
     setCategories(prev => prev.map(c => c._id === category._id ? { ...c, isActive: !currentActive } : c));
 
     try {
-      const payload = {
-        name: category.name,
-        slug: category.slug || generateSlug(category.name),
-        description: category.description || '',
-        color: category.color || '',
-        icon: category.icon || '',
-        order: category.order ?? 0,
-        isActive: !currentActive,
-      };
+      const payload = { isActive: !currentActive };
 
       await adminRequest(`/api/categories/admin/${category._id}`, {
         method: 'PUT',
@@ -182,6 +187,10 @@ export default function CategoriesManagement() {
       result = result.filter(c => (c.isActive !== false) === isActiveFilter);
     }
 
+    if (languageFilter !== 'all') {
+      result = result.filter(c => (c.language || 'All') === languageFilter);
+    }
+
     return [...result].sort((a, b) => {
       switch (sortOrder) {
         case 'name_asc':
@@ -193,7 +202,7 @@ export default function CategoriesManagement() {
           return (a.order ?? 0) - (b.order ?? 0);
       }
     });
-  }, [categories, search, statusFilter, sortOrder]);
+  }, [categories, search, statusFilter, languageFilter, sortOrder]);
 
   if (loading) {
     return (
@@ -210,7 +219,7 @@ export default function CategoriesManagement() {
           <Typography variant="h4" sx={{ fontFamily: 'var(--font-display, "DM Serif Display", Georgia, serif)', fontWeight: 700, color: '#111827' }}>
             Categories
           </Typography>
-          <Typography sx={{ color: '#6b7280' }}>Manage book categories & stream taxonomies</Typography>
+          <Typography sx={{ color: '#6b7280' }}>Sub-categories visitors see after choosing English or Gujarati on the Books page</Typography>
         </Box>
         <Button
           variant="contained"
@@ -265,6 +274,20 @@ export default function CategoriesManagement() {
           />
 
           <Box sx={{ display: 'flex', gap: 2, width: { xs: '100%', md: 'auto' }, flexWrap: 'wrap' }}>
+            <TextField
+              select
+              size="small"
+              label="Book language"
+              value={languageFilter}
+              onChange={(e) => setLanguageFilter(e.target.value)}
+              sx={{ minWidth: 180, ...lightTextFieldStyle }}
+            >
+              <MenuItem value="all">All languages</MenuItem>
+              {LANGUAGE_OPTIONS.map((o) => (
+                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+              ))}
+            </TextField>
+
             <FormControl size="small" sx={{ minWidth: 160, ...lightTextFieldStyle }}>
               <InputLabel id="status-filter-label" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <FilterListIcon fontSize="small" /> Status
@@ -339,6 +362,7 @@ export default function CategoriesManagement() {
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
               <TableCell sx={{ fontWeight: 700, color: '#111827', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Name</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#111827', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Books tab</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#111827', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Slug</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#111827', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Color</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#111827', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>Order</TableCell>
@@ -349,7 +373,7 @@ export default function CategoriesManagement() {
           <TableBody>
             {categories.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} sx={{ textAlign: 'center', py: 6, color: '#6b7280', borderBottom: 0 }}>
+                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, color: '#6b7280', borderBottom: 0 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <Typography sx={{ fontWeight: 600, color: '#111827', fontSize: '1.1rem' }}>No categories yet</Typography>
                     <Typography sx={{ color: '#6b7280', fontSize: '0.9rem' }}>Click "Add Category" to create one.</Typography>
@@ -358,14 +382,14 @@ export default function CategoriesManagement() {
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 10, borderBottom: 0 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 10, borderBottom: 0 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <SearchIcon sx={{ fontSize: 54, color: '#111827', opacity: 0.5 }} />
                     <Typography variant="h6" sx={{ color: '#111827', fontWeight: 600 }}>No matching categories</Typography>
                     <Typography variant="body2" sx={{ color: '#6b7280' }}>Try adjusting your search or filters.</Typography>
                     <Button 
                       variant="outlined" 
-                      onClick={() => { setSearch(''); setStatusFilter('all'); setSortOrder('order_asc'); }}
+                      onClick={() => { setSearch(''); setStatusFilter('all'); setLanguageFilter('all'); setSortOrder('order_asc'); }}
                       sx={{ mt: 2, color: '#111827', borderColor: '#10b981', borderRadius: '8px' }}
                     >
                       Clear Filters
@@ -386,6 +410,14 @@ export default function CategoriesManagement() {
                         {cat.description.length > 60 ? cat.description.slice(0, 60) + '…' : cat.description}
                       </Typography>
                     )}
+                  </TableCell>
+                  <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
+                    {(() => {
+                      const c = LANGUAGE_CHIP[cat.language || 'All'];
+                      return (
+                        <Chip label={c.label} size="small" sx={{ fontSize: '0.75rem', fontWeight: 700, bgcolor: c.bg, color: c.col, border: `1px solid ${c.border}` }} />
+                      );
+                    })()}
                   </TableCell>
                   <TableCell sx={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                     <Chip label={cat.slug} size="small" sx={{ fontSize: '0.75rem', bgcolor: '#f3f4f6', color: '#111827', border: '1px solid rgba(255,255,255,0.15)' }} />
@@ -458,13 +490,19 @@ export default function CategoriesManagement() {
               fullWidth
               sx={lightTextFieldStyle}
             />
-            {formData.name && !editingCategory && (
-              <Box sx={{ bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 1.5, px: 2, py: 1, border: '1px solid rgba(0,0,0,0.06)' }}>
-                <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                  Generated Slug: <strong className="text-[#e8b86d] font-mono">{generateSlug(formData.name)}</strong>
-                </Typography>
-              </Box>
-            )}
+            <TextField
+              select
+              label="Show under *"
+              value={formData.language}
+              onChange={e => setFormData(p => ({ ...p, language: e.target.value }))}
+              fullWidth
+              helperText="On the Books page, this appears as a sub-category when visitors open this tab"
+              sx={lightTextFieldStyle}
+            >
+              {LANGUAGE_OPTIONS.map((o) => (
+                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+              ))}
+            </TextField>
             <TextField
               label="Description"
               value={formData.description}

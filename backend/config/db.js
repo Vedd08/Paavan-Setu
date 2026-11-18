@@ -20,6 +20,12 @@ const connectWithRetry = async (attempt = 1) => {
       heartbeatFrequencyMS: 10000,
     });
     console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+    // Category uniqueness moved from a global `name` index to one scoped per
+    // language. autoIndex only adds indexes, so drop the stale global ones here
+    // or the same name could never exist under both English and Gujarati.
+    require('../models/Category').syncIndexes().catch((err) => {
+      console.error('⚠️  Could not sync category indexes:', err.message);
+    });
   } catch (error) {
     console.error(
       `❌ MongoDB connection failed (attempt ${attempt}): ${error.message}`

@@ -89,6 +89,12 @@ const bookSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  // Shown in the "New arrivals" row at the top of the Books page. The rest of
+  // the catalogue is reached through the English / Gujarati tabs.
+  isNewArrival: {
+    type: Boolean,
+    default: false,
+  },
   tag: {
     type: String,
     trim: true,

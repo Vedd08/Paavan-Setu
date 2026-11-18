@@ -5,7 +5,7 @@
  * fallback if the API is unreachable — so the site never renders an empty page.
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { getBooks, getSettings, isClientError } from '../lib/api';
+import { getBooks, getCategories, getSettings, isClientError } from '../lib/api';
 
 function useResource(fetcher, fallback, key) {
   const [data, setData] = useState(fallback);
@@ -55,6 +55,10 @@ function useResource(fetcher, fallback, key) {
 export function useBooks(fallback = [], params) {
   const key = JSON.stringify(params || {});
   return useResource(() => getBooks(params), fallback, key);
+}
+
+export function useCategories(fallback = []) {
+  return useResource(getCategories, fallback, 'categories');
 }
 
 export function useSettings(fallback = {}) {

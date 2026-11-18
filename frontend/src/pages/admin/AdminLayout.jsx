@@ -29,7 +29,7 @@ const DRAWER_WIDTH = 270;
 const navItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin' },
   { text: 'Books', icon: <MenuBookIcon />, path: '/admin/books' },
-  { text: 'Categories', icon: <CategoryIcon />, path: '/admin/categories' },
+  { text: 'Book Sub-categories', icon: <CategoryIcon />, path: '/admin/categories' },
   { text: 'Authors', icon: <PersonIcon />, path: '/admin/authors' },
   { text: 'Users', icon: <PeopleIcon />, path: '/admin/users' },
   { text: 'Orders', icon: <ShoppingCartIcon />, path: '/admin/orders' },

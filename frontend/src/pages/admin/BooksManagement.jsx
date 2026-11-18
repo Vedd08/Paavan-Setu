@@ -16,7 +16,16 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
+import CategoryIcon from '@mui/icons-material/Category';
+import { Link as RouterLink } from 'react-router-dom';
 import { adminRequest, mediaUrl } from '../../lib/api';
+
+const NEW_CATEGORY = '__new__';
+
+/* The shelf a sub-category created from the book form lands on. Bilingual and
+   Hindi books have no shelf of their own, so theirs shows under both tabs. */
+const shelfForLanguage = (language) =>
+  language === 'English' || language === 'Gujarati' ? language : 'All';
 
 const lightTextFieldStyle = {
   '& .MuiOutlinedInput-root': {
@@ -61,6 +70,34 @@ export default function BooksManagement() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Quick-add a sub-category without leaving the book form.
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryError, setNewCategoryError] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setCreatingCategory(true);
+    setNewCategoryError('');
+    try {
+      const created = await adminRequest('/api/categories/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, language: shelfForLanguage(formData.language), isActive: true }),
+      });
+      setCategories((prev) => [...prev, created]);
+      setFormData((p) => ({ ...p, categoryId: created._id }));
+      setNewCategoryOpen(false);
+      setNewCategoryName('');
+    } catch (err) {
+      setNewCategoryError(err.message || 'Could not create the sub-category');
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
 
   // Filters & Sorting State
   const [searchTerm, setSearchTerm] = useState('');
@@ -332,22 +369,36 @@ export default function BooksManagement() {
             Add, update, or remove books from your store's inventory.
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpen()}
-          sx={{
-            bgcolor: 'var(--color-ink)',
-            color: 'var(--color-snow)',
-            '&:hover': { bgcolor: 'var(--color-ink)', opacity: 0.9, transform: 'translateY(-1px)' },
-            transition: 'all 0.2s ease',
-            px: 3, py: 1.2, borderRadius: '14px', textTransform: 'none', fontWeight: 600, fontSize: '0.95rem',
-            boxShadow: '0 4px 12px rgba(10, 79, 34, 0.15)',
-            alignSelf: { xs: 'flex-start', md: 'auto' }
-          }}
-        >
-          Add Book
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignSelf: { xs: 'flex-start', md: 'auto' } }}>
+          <Button
+            component={RouterLink}
+            to="/admin/categories"
+            variant="outlined"
+            startIcon={<CategoryIcon />}
+            sx={{
+              color: 'var(--color-ink)', borderColor: 'rgba(0,0,0,0.15)',
+              '&:hover': { borderColor: 'var(--color-green)', bgcolor: 'var(--color-paper-muted)' },
+              px: 2.5, py: 1.2, borderRadius: '14px', textTransform: 'none', fontWeight: 600, fontSize: '0.95rem',
+            }}
+          >
+            Manage Sub-categories
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+            sx={{
+              bgcolor: 'var(--color-ink)',
+              color: 'var(--color-snow)',
+              '&:hover': { bgcolor: 'var(--color-ink)', opacity: 0.9, transform: 'translateY(-1px)' },
+              transition: 'all 0.2s ease',
+              px: 3, py: 1.2, borderRadius: '14px', textTransform: 'none', fontWeight: 600, fontSize: '0.95rem',
+              boxShadow: '0 4px 12px rgba(10, 79, 34, 0.15)',
+            }}
+          >
+            Add Book
+          </Button>
+        </Box>
       </Box>
 
       {/* Filters Toolbar */}
@@ -642,11 +693,18 @@ export default function BooksManagement() {
                   select
                   label="Sub-category"
                   value={formData.categoryId}
-                  onChange={e => setFormData(p => ({ ...p, categoryId: e.target.value }))}
+                  onChange={e => {
+                    if (e.target.value === NEW_CATEGORY) {
+                      setNewCategoryError('');
+                      setNewCategoryOpen(true);
+                      return;
+                    }
+                    setFormData(p => ({ ...p, categoryId: e.target.value }));
+                  }}
                   fullWidth
                   helperText={categoryOptions.length
-                    ? 'Add or rename sub-categories under Categories'
-                    : `No ${formData.language} sub-categories yet — add them under Categories`}
+                    ? `Pick a ${formData.language} sub-category, or add a new one`
+                    : `No ${formData.language} sub-categories yet — choose "Add new sub-category"`}
                   sx={lightTextFieldStyle}
                 >
                   <MenuItem value="" sx={{ bgcolor: '#ffffff', color: '#6b7280', fontStyle: 'italic' }}>None</MenuItem>
@@ -655,6 +713,10 @@ export default function BooksManagement() {
                       {c.icon ? `${c.icon} ` : ''}{c.name}{c.isActive === false ? ' (hidden)' : ''}
                     </MenuItem>
                   ))}
+                  <Divider />
+                  <MenuItem value={NEW_CATEGORY} sx={{ bgcolor: '#ffffff', color: 'var(--color-green)', fontWeight: 700, gap: 1 }}>
+                    <AddIcon fontSize="small" /> Add new sub-category…
+                  </MenuItem>
                 </TextField>
                 <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, borderRadius: '12px', bgcolor: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                   <Switch
@@ -771,6 +833,49 @@ export default function BooksManagement() {
             }}
           >
             {saving ? 'Saving...' : editingBook ? 'Update Book' : 'Create Book'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Quick-add sub-category, opened from the book form's picker. */}
+      <Dialog
+        open={newCategoryOpen}
+        onClose={() => !creatingCategory && setNewCategoryOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontFamily: 'var(--font-display, "DM Serif Display", Georgia, serif)', fontWeight: 700, color: 'var(--color-ink)' }}>
+          New {shelfForLanguage(formData.language) === 'All' ? '' : `${formData.language} `}sub-category
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.88rem', color: '#6b7280', mb: 2 }}>
+            {shelfForLanguage(formData.language) === 'All'
+              ? 'It will appear under both the English and Gujarati tabs on the Books page.'
+              : `It will appear when visitors open the ${formData.language} tab on the Books page.`}
+          </Typography>
+          <TextField
+            autoFocus
+            label="Sub-category name *"
+            placeholder={formData.language === 'Gujarati' ? 'e.g. બાળ વાર્તાઓ' : 'e.g. Mythology'}
+            value={newCategoryName}
+            onChange={e => setNewCategoryName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } }}
+            fullWidth
+            error={Boolean(newCategoryError)}
+            helperText={newCategoryError || ' '}
+            sx={lightTextFieldStyle}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setNewCategoryOpen(false)} disabled={creatingCategory} sx={{ color: '#6b7280', fontWeight: 600 }}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateCategory}
+            disabled={creatingCategory || !newCategoryName.trim()}
+            sx={{ bgcolor: 'var(--color-green)', color: 'var(--color-snow)', fontWeight: 600, borderRadius: '10px', px: 3, '&:hover': { bgcolor: 'var(--color-ink)' } }}
+          >
+            {creatingCategory ? 'Adding…' : 'Add'}
           </Button>
         </DialogActions>
       </Dialog>

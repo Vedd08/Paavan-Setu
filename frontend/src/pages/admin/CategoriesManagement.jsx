@@ -217,7 +217,7 @@ export default function CategoriesManagement() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" sx={{ fontFamily: 'var(--font-display, "DM Serif Display", Georgia, serif)', fontWeight: 700, color: '#111827' }}>
-            Categories
+            Book Sub-categories
           </Typography>
           <Typography sx={{ color: '#6b7280' }}>Sub-categories visitors see after choosing English or Gujarati on the Books page</Typography>
         </Box>
@@ -234,7 +234,7 @@ export default function CategoriesManagement() {
             boxShadow: '0 4px 14px rgba(232, 184, 109, 0.3)'
           }}
         >
-          Add Category
+          Add Sub-category
         </Button>
       </Box>
 
@@ -376,7 +376,7 @@ export default function CategoriesManagement() {
                 <TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, color: '#6b7280', borderBottom: 0 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <Typography sx={{ fontWeight: 600, color: '#111827', fontSize: '1.1rem' }}>No categories yet</Typography>
-                    <Typography sx={{ color: '#6b7280', fontSize: '0.9rem' }}>Click "Add Category" to create one.</Typography>
+                    <Typography sx={{ color: '#6b7280', fontSize: '0.9rem' }}>Click "Add Sub-category" to create one.</Typography>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -479,7 +479,7 @@ export default function CategoriesManagement() {
         }}
       >
         <DialogTitle sx={{ fontFamily: 'var(--font-display, "DM Serif Display", Georgia, serif)', fontWeight: 700, color: '#111827' }}>
-          {editingCategory ? 'Edit Category' : 'Add New Category'}
+          {editingCategory ? 'Edit Sub-category' : 'Add New Sub-category'}
         </DialogTitle>
         <DialogContent dividers sx={{ borderColor: '#e5e7eb' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>

@@ -1605,7 +1605,18 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const isCompleted = totalQuestions > 0 && answeredCount === totalQuestions;
   
   // Batch variables
-    const currentBatchQs = test.questions.slice(currentQuestionIdx, currentQuestionIdx + BATCH_SIZE);
+  // Follow-up reading items only say "Answer based on the … passage shown in
+  // Q57". With several questions per page that passage can sit on an earlier
+  // page, so pull the referenced passage in and show it here (once per page —
+  // showScenario below skips repeats).
+  const resolveScenario = (scenario) => {
+    const m = /passage shown in Q(\d{1,3})/i.exec(scenario || '');
+    const ref = m ? test.questions[Number(m[1]) - 1] : null;
+    return ref && (ref.scenario || '').length > 200 ? ref.scenario : scenario;
+  };
+  const currentBatchQs = test.questions
+    .slice(currentQuestionIdx, currentQuestionIdx + BATCH_SIZE)
+    .map((q) => ({ ...q, scenario: resolveScenario(q.scenario) }));
   const isLastBatch = currentQuestionIdx + BATCH_SIZE >= totalQuestions;
   const totalBatches = Math.ceil(totalQuestions / BATCH_SIZE);
   const currentBatchIdx = Math.floor(currentQuestionIdx / BATCH_SIZE);

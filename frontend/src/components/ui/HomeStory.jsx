@@ -11,7 +11,7 @@ import {
 } from 'framer-motion';
 import { brand } from '../../constants/brand';
 import { RevealText, CountUp, EASE_OUT } from './TextMotion';
-import counsellingSession from '../../assets/hero/counselling-session.webp';
+import campusStudy from '../../assets/hero/campus-study.webp';
 import dmitFingerprint from '../../assets/hero/dmit-fingerprint.webp';
 import psychometricOnline from '../../assets/hero/psychometric-online.webp';
 import schoolClassroom from '../../assets/hero/school-classroom.webp';
@@ -61,7 +61,7 @@ function buildChapters({ whyTitle, whyDescription, achievements }) {
         'A written roadmap to follow afterwards',
       ],
       cta: { label: 'How counselling works', to: '/career-counselling' },
-      visual: { type: 'photo', src: counsellingSession, alt: 'A counsellor in a one-on-one session', position: '62% 45%' },
+      visual: { type: 'photo', src: campusStudy, alt: 'College students studying together on a campus lawn', position: '58% 55%' },
     },
     {
       key: 'dmit',

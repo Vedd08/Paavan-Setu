@@ -13,7 +13,7 @@ import HomeActions from './HomeActions';
 import { RevealText, RotatingWord, EASE_OUT } from './TextMotion';
 import studentPortrait from '../../assets/hero/student-portrait.webp';
 import schoolClassroom from '../../assets/hero/school-classroom.webp';
-import counsellingSession from '../../assets/hero/counselling-session.webp';
+import mentorSession from '../../assets/hero/psychometric-online.webp';
 import libraryStudy from '../../assets/hero/library-study.webp';
 import campusStudy from '../../assets/hero/campus-study.webp';
 
@@ -53,7 +53,7 @@ import campusStudy from '../../assets/hero/campus-study.webp';
 const GALLERY = [
   { src: studentPortrait, alt: 'A college student with a backpack', scale: 0.7, position: '48% 30%', pexels: 16562720 },
   { src: schoolClassroom, alt: 'Students in school uniform listening in class', scale: 0.86, position: '45% 40%', pexels: 3231358 },
-  { src: counsellingSession, alt: 'A counsellor in a one-on-one session', scale: 1, position: '62% 45%', pexels: 14797769 },
+  { src: mentorSession, alt: 'A mentor guiding a student through notes at a table', scale: 1, position: '50% 55%', pexels: 4308094 },
   { src: libraryStudy, alt: 'A student reading in a library', scale: 0.86, position: '78% 40%', pexels: 16461275 },
   { src: campusStudy, alt: 'College students studying together on a campus lawn', scale: 0.7, position: '58% 55%', pexels: 4622108 },
 ];

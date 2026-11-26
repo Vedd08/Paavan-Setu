@@ -1131,6 +1131,53 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
     const breakdown = Object.entries(result.resultData || {}).sort((a, b) => b[1] - a[1]);
     const maxScore = Math.max(1, ...breakdown.map(([, score]) => score));
 
+    /* Retake CTA. Shared by every report layout: it used to live only in the
+       generic layout, so a learner who had finished Stream Selector, Commerce,
+       Humanities or Ideal Career had no way back into the test — every visit
+       landed on the saved result. */
+    const retakeCta = result.testSlug === type && test?.allowRetake !== false ? (
+      <motion.div variants={resultItemVariants} className="mx-auto mt-12 mb-8 w-full max-w-3xl">
+        <div className="rounded-2xl border border-[#d9ae3c]/40 bg-[#e9c85c]/[0.14] px-6 py-6 text-center">
+          <p className="text-sm text-zinc-700 mb-4">
+            Want to take this assessment again? Enter a coupon to start a fresh attempt.
+          </p>
+          {retakeError && (
+            <p role="alert" className="text-sm text-red-600 mb-3">{retakeError}</p>
+          )}
+          {couponApplied && (
+            <p className="text-xs text-emerald-600 mt-2">Coupon validated — retake reset to question 1.</p>
+          )}
+          {!couponApplied && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => {
+                  setCouponCode(e.target.value.toUpperCase());
+                  setCouponVerified(false);
+                  setRetakeError('');
+                }}
+                placeholder="Enter coupon code"
+                aria-label="Coupon code"
+                autoComplete="off"
+                spellCheck="false"
+                className="w-56 rounded-full border border-zinc-200 bg-zinc-50/80 px-4 py-2 text-sm tracking-wider text-zinc-900 transition-[border-color,background-color] duration-200 ease-out placeholder:text-zinc-900/30 focus:border-[#e9c85c] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleRetake}
+                disabled={isSubmitting || couponCode.trim().length === 0}
+                className="rounded-full px-6 py-2 text-sm font-bold text-[#051a0d] bg-[#e9c85c] transition-[transform,opacity,background-color] duration-200 ease-out hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                style={{ isolation: 'isolate', willChange: 'transform' }}
+              >
+                {isSubmitting ? 'Processing...' : 'Retake Test'}
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    ) : null;
+
     return (
       <div className="relative isolate flex min-h-dvh flex-col overflow-hidden px-4 pb-20 pt-28 sm:px-6 md:pt-32">
         <FieldBackground reducedMotion={prefersReducedMotion} />
@@ -1164,7 +1211,9 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
             >
               <CommerceReport result={result} prefersReducedMotion={prefersReducedMotion} />
 
-              <motion.div variants={resultItemVariants} className="flex justify-center mt-12">
+              {retakeCta}
+
+              <motion.div variants={resultItemVariants} className={`flex justify-center ${retakeCta ? '' : 'mt-12'}`}>
                 <BackLink />
               </motion.div>
             </motion.div>
@@ -1176,7 +1225,9 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
             >
               <StreamSelectorReport result={result} test={test} prefersReducedMotion={prefersReducedMotion} />
 
-              <motion.div variants={resultItemVariants} className="flex justify-center mt-12">
+              {retakeCta}
+
+              <motion.div variants={resultItemVariants} className={`flex justify-center ${retakeCta ? '' : 'mt-12'}`}>
                 <BackLink />
               </motion.div>
             </motion.div>
@@ -1188,7 +1239,9 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
             >
               <HumanitiesReport result={result} test={test} prefersReducedMotion={prefersReducedMotion} />
 
-              <motion.div variants={resultItemVariants} className="flex justify-center mt-12">
+              {retakeCta}
+
+              <motion.div variants={resultItemVariants} className={`flex justify-center ${retakeCta ? '' : 'mt-12'}`}>
                 <BackLink />
               </motion.div>
             </motion.div>
@@ -1200,7 +1253,9 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
             >
               <IdealCareerReport result={result} test={test} prefersReducedMotion={prefersReducedMotion} />
 
-              <motion.div variants={resultItemVariants} className="flex justify-center mt-12">
+              {retakeCta}
+
+              <motion.div variants={resultItemVariants} className={`flex justify-center ${retakeCta ? '' : 'mt-12'}`}>
                 <BackLink />
               </motion.div>
             </motion.div>
@@ -1546,49 +1601,7 @@ const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
                 ) : null}
             </div>
 
-            {/* Retake CTA */}
-            {result && result.testSlug === type && test?.allowRetake !== false && (
-              <motion.div variants={resultItemVariants} className="mx-auto mb-8 w-full max-w-3xl">
-                <div className="rounded-2xl border border-[#d9ae3c]/40 bg-[#e9c85c]/[0.14] px-6 py-6 text-center">
-                  <p className="text-sm text-zinc-700 mb-4">
-                    Didn't get the result you wanted? Use a coupon to retake this assessment.
-                  </p>
-                  {retakeError && (
-                    <p role="alert" className="text-sm text-red-600 mb-3">{retakeError}</p>
-                  )}
-                  {couponApplied && (
-                    <p className="text-xs text-emerald-600 mt-2">Coupon validated — retake reset to question 1.</p>
-                  )}
-                  {!couponApplied && (
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                      <input
-                        type="text"
-                        value={couponCode}
-                        onChange={(e) => {
-                          setCouponCode(e.target.value.toUpperCase());
-                          setCouponVerified(false);
-                          setRetakeError('');
-                        }}
-                        placeholder="Enter coupon code"
-                        aria-label="Coupon code"
-                        autoComplete="off"
-                        spellCheck="false"
-                        className="w-56 rounded-full border border-zinc-200 bg-zinc-50/80 px-4 py-2 text-sm tracking-wider text-zinc-900 transition-[border-color,background-color] duration-200 ease-out placeholder:text-zinc-900/30 focus:border-[#e9c85c] focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleRetake}
-                        disabled={isSubmitting || couponCode.trim().length === 0}
-                        className="rounded-full px-6 py-2 text-sm font-bold text-[#051a0d] bg-[#e9c85c] transition-[transform,opacity,background-color] duration-200 ease-out hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
-                        style={{ isolation: 'isolate', willChange: 'transform' }}
-                      >
-                        {isSubmitting ? 'Processing...' : 'Retake Test'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
+            {retakeCta}
 
             <motion.div variants={resultItemVariants} className="flex justify-center">
               <BackLink />

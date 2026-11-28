@@ -23,6 +23,29 @@ import FormAlerts from '../../components/ui/FormAlerts';
 
 const COLORS = ['#e8b86d', '#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#f87171', '#4ade80'];
 
+/* Chart tooltips. These used to carry a near-black panel from the old dark
+   admin theme while the text was set to near-black ink, so every hover value
+   on this page was unreadable. One light style for all of them. */
+const TOOLTIP_STYLE = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e5e7eb',
+  borderRadius: 12,
+  color: '#111827',
+  fontSize: 13,
+  boxShadow: '0 10px 30px -12px rgba(0,0,0,0.25)',
+};
+const TOOLTIP_ITEM = { color: '#111827' };
+const TOOLTIP_LABEL = { color: '#111827', fontWeight: 700, marginBottom: 2 };
+const BAR_CURSOR = { fill: 'rgba(0,0,0,0.04)' };
+
+/* Text on white. The pale mint/amber/rose used for bars and fills is too light
+   to read as text, so labels and chips use these deeper shades instead. */
+const INK = { green: '#047857', amber: '#b45309', red: '#b91c1c' };
+
+/* Card heading. MUI has no "h7" variant: it rendered an inline <span>, so the
+   bottom margin was ignored and every chart title sat flush on its chart. */
+const CARD_TITLE_SX = { color: '#111827', fontWeight: 700, fontSize: '1rem', display: 'block', mb: 2.5 };
+
 /* ─── CSV export ───────────────────────────────────────────────────────────
    Carries the outcome columns an admin actually reports on — score, verdict,
    attempt status, how far the attempt got — not just the category vector, and
@@ -176,7 +199,7 @@ function TestCard({ t, isSelected, onClick }) {
               fontSize: '0.7rem', mt: 0.4, fontWeight: 700,
               color: t.completionRate == null
                 ? 'rgba(0, 0, 0, 0.35)'
-                : t.completionRate >= 80 ? '#34d399' : t.completionRate >= 60 ? '#f5d9a0' : '#f87171',
+                : t.completionRate >= 80 ? INK.green : t.completionRate >= 60 ? INK.amber : INK.red,
             }}
           >
             {t.completionRate == null ? 'No attempts yet' : `${t.completionRate}% completion`}
@@ -219,7 +242,7 @@ function EmptyDashboard() {
    keyed, so "no record" is the honest answer — never a wrong-answer verdict. */
 function answerVerdict({ correct, answered, correctText }) {
   const key = correctText ? ` — key: ${correctText}` : '';
-  if (correct === true) return { label: 'Yes', color: '#34d399' };
+  if (correct === true) return { label: 'Yes', color: INK.green };
   if (correct == null) return { label: `No record${key}`, color: '#9ca3af' };
   return answered
     ? { label: `No${key}`, color: '#ef4444' }
@@ -265,8 +288,8 @@ function pdfDoc(title) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(150);
-      doc.text(pdfClean(leftLabel), M, 292);
-      doc.text(`Page-${i}`, 210 - M, 292, { align: 'right' });
+      doc.text(pdfClean(leftLabel).slice(0, 110), M, 292);
+      doc.text(`Page ${i} of ${n}`, 210 - M, 292, { align: 'right' });
     }
   };
   return { doc, M, W, BOTTOM, need, gap, footer, getY: () => y, setY: (v) => { y = v; } };
@@ -511,7 +534,7 @@ function buildCounsellingPdf(d) {
     const bandLine = ['High', 'Medium', 'Low']
       .map(b => `${b}: ${(d.bands[b] || []).join(', ') || '-'}`)
       .join('  |  ');
-    pdfPara(L, `Interest bands (relative to your top dimension): ${bandLine}`, { size: 9 });
+    pdfPara(L, `Interest bands (relative to ${d.firstName}'s top dimension): ${bandLine}`, { size: 9 });
     pdfPara(L, `Career reading (this attempt only): strongest alignment ${d.dimensions[0].name} (${d.dimensions[0].share}% share)${d.dimensions.length > 1 ? `; also notable ${d.dimensions[1].name} (${d.dimensions[1].share}%)` : ''}${(d.bands.High || []).length > 0 ? `. Recommend starting from the High band: ${d.bands.High.join(', ')}` : ''}. Map these to career families through your counselling framework - the test measures interest alignment, not ability. Lowest alignment (${d.dimensions[d.dimensions.length - 1].name}) is contrast, not a verdict. Specific job titles are deliberately not listed: this test records dimension alignment only.`, { size: 9 });
   }
 
@@ -542,7 +565,7 @@ function buildCounsellingPdf(d) {
   }
   if (d.isScored && d.buckets.length > 0) {
     pdfHeading(L, 'Cohort Score Spread (this attempt marked *)', 11);
-    pdfBullets(L, d.buckets.map(b => ({ body: `${b.label}: ${b.count} attempt(s)${b.mine ? '  * YOU' : ''}` })));
+    pdfBullets(L, d.buckets.map(b => ({ body: `${b.label}: ${b.count} attempt(s)${b.mine ? `  * ${d.firstName}` : ''}` })));
   }
 
   // Questions — full bank order, skips included
@@ -568,7 +591,9 @@ function buildCounsellingPdf(d) {
 
   pdfPara(L, 'Sources: this attempt\'s stored answers, timings and flags; the test bank (sections, difficulty, tags); cohort aggregates for this test. The printed bars and dimension map are drawn from the same numbers as the on-screen charts. Career language reflects measured alignment only.', { size: 8.5, color: [156, 163, 175] });
 
-  L.footer(d.firstName);
+  // The footer used to carry only the learner's first name, so a loose page
+  // said nothing about which test or report it came from.
+  L.footer(`Paavan Setu - ${title} - ${d.learner}`);
   doc.save(d.filename);
 }
 
@@ -587,6 +612,9 @@ function sectionOf(test, idx) {
    and `rank` the learner's standing among completed attempts. */
 function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
   const [isExporting, setIsExporting] = useState(false);
+  // A failed build used to log to the console only: the button reset and the
+  // counsellor was left wondering whether a file had been saved.
+  const [exportError, setExportError] = useState('');
   const [tab, setTab] = useState(0);
   const [qFilter, setQFilter] = useState('all');
   const [expandedQ, setExpandedQ] = useState(null);
@@ -596,7 +624,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
      what the counsellor wrote during the session. */
   // Reset per-report UI for each new attempt — otherwise the dialog reopens on
   // the previous report's tab, filter and expanded question.
-  useEffect(() => { if (open) { setTab(0); setQFilter('all'); setExpandedQ(null); setNotes(''); } }, [open, result?._id]);
+  useEffect(() => { if (open) { setTab(0); setQFilter('all'); setExpandedQ(null); setNotes(''); setExportError(''); } }, [open, result?._id]);
 
   /* Export builds the same numbers the screen shows into a paginated,
      selectable-text PDF (see buildCounsellingPdf) — no screenshot, so long
@@ -605,6 +633,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
     if (!result || isExporting) return;
     try {
       setIsExporting(true);
+      setExportError('');
       // Let the button paint before the synchronous build blocks the thread.
       await new Promise(resolve => setTimeout(resolve, 50));
       const bucketOf = (pct) => {
@@ -634,7 +663,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
         flaggedCount,
         howTo: isScored
           ? `${firstName}'s score is correct answers out of keyed questions only - unkeyed items never count for or against. Accuracy (correct of answered) and completion (answered of total) tell different stories: low accuracy with full completion is a preparation signal, while high accuracy with many skips is a time-management signal. Cohort figures compare against other completed attempts of this same test.`
-          : `${firstName}, each dimension shows your alignment points, its share of your total, and the cohort average for this test. The band is relative to your own top dimension - High (67% or more of your top score) is a genuine direction to explore first, Medium (33-66%) is worth developing, Low (under 33%) is contrast, not a verdict on ability.`,
+          : `Each dimension shows ${firstName}'s alignment points, its share of ${firstName}'s total, and the cohort average for this test. The band is relative to ${firstName}'s own top dimension - High (67% or more of the top score) is a genuine direction to explore first, Medium (33-66%) is worth developing, Low (under 33%) is contrast, not a verdict on ability.`,
         domains: domainTotals,
         bands: bandGroups,
         insights: counselorInsights || [],
@@ -682,6 +711,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
       });
     } catch (error) {
       console.error('Failed to generate PDF', error);
+      setExportError("Couldn't build the PDF. Please try again.");
     } finally {
       setIsExporting(false);
     }
@@ -1088,7 +1118,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                   sx={{
                     mt: 0.25, fontWeight: 700,
                     bgcolor: result.status === 'abandoned' ? 'rgba(251,191,36,0.15)' : 'rgba(52,211,153,0.15)',
-                    color: result.status === 'abandoned' ? '#fbbf24' : '#34d399',
+                    color: result.status === 'abandoned' ? INK.amber : INK.green,
                   }}
                 />
               </Box>
@@ -1136,7 +1166,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
           {result.percentage != null && (
             <Box sx={{ flex: '1 1 200px', p: 3, bgcolor: 'rgba(52, 211, 153, 0.08)', borderRadius: '16px', border: '1px solid rgba(52, 211, 153, 0.2)' }}>
               <Typography sx={{ color: '#6b7280', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: 700, mb: 1 }}>Score</Typography>
-              <Typography sx={{ color: '#34d399', fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
+              <Typography sx={{ color: INK.green, fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
                 {result.percentage}%
                 <Typography component="span" sx={{ fontSize: '1rem', color: '#6b7280', ml: 1 }}>
                   ({result.score}/{result.maxScore})
@@ -1191,7 +1221,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                 <Card sx={{ bgcolor: '#f9fafb', border: '1px solid #e5e7eb', boxShadow: 'none' }}>
                   <CardContent sx={{ p: '16px !important' }}>
                     <Typography sx={{ color: '#6b7280', fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 600 }}>Avg Time / Correct</Typography>
-                    <Typography sx={{ color: '#34d399', fontSize: '1.25rem', fontWeight: 700 }}>
+                    <Typography sx={{ color: INK.green, fontSize: '1.25rem', fontWeight: 700 }}>
                       {advancedStats.avgTimeCorrect}s
                     </Typography>
                   </CardContent>
@@ -1226,11 +1256,12 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
             </Typography>
           ) : (
             <Typography sx={{ fontSize: '0.85rem', color: '#4b5563' }}>
-              {firstName}, each dimension below shows your alignment points, its share of your total,
-              and how it compares with the cohort average for this test. The band is relative to your
-              own top dimension — <strong>High</strong> (≥67% of your top score) means a genuine direction
-              worth exploring first, <strong>Medium</strong> (33–66%) is worth developing interest in, and{' '}
-              <strong>Low</strong> (&lt;33%) is contrast for the conversation, not a verdict on ability.
+              Each dimension shows {firstName}&apos;s alignment points, its share of {firstName}&apos;s total,
+              and how it compares with the cohort average for this test. The band is relative to{' '}
+              {firstName}&apos;s own top dimension — <strong>High</strong> (≥67% of the top score) means a
+              genuine direction worth exploring first, <strong>Medium</strong> (33–66%) is worth developing
+              interest in, and <strong>Low</strong> (&lt;33%) is contrast for the conversation, not a verdict
+              on ability.
             </Typography>
           )}
         </Paper>
@@ -1383,7 +1414,9 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                           <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#111827' }}>{d.share}%</Typography>
                         </Box>
                       </TableCell>
-                      <TableCell sx={{ color: '#6b7280', fontSize: '0.8rem' }}>{d.cohortAvg ?? '—'}</TableCell>
+                      {/* Band before Cohort Avg, matching the header. The two
+                          cells were in the opposite order, so "Band" showed the
+                          cohort number and "Cohort Avg" showed the band chip. */}
                       <TableCell sx={{ borderColor: '#f3f4f6' }}>
                         <Chip
                           label={d.band}
@@ -1395,6 +1428,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                           }}
                         />
                       </TableCell>
+                      <TableCell sx={{ color: '#6b7280', fontSize: '0.8rem' }}>{d.cohortAvg ?? '—'}</TableCell>
                       <TableCell sx={{ fontSize: '0.8rem', fontWeight: 700, color: d.delta == null ? '#9ca3af' : d.delta >= 0 ? '#059669' : '#dc2626' }}>
                         {d.delta == null ? '—' : `${d.delta >= 0 ? '+' : ''}${d.delta}`}
                       </TableCell>
@@ -1483,11 +1517,13 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                       <Box key={diff} sx={{ mb: 2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                           <Typography sx={{ fontSize: '0.8rem', textTransform: 'capitalize', fontWeight: 600, color: '#374151' }}>{diff}</Typography>
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444' }}>
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: pct >= 70 ? INK.green : pct >= 40 ? INK.amber : INK.red }}>
                             {pct}% <span style={{ color: '#9ca3af', fontWeight: 400 }}>({st.correct}/{st.total})</span>
                           </Typography>
                         </Box>
-                        <Box sx={{ w: '100%', h: 6, bgcolor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                        {/* width/height, not w/h: MUI has no such shorthands, so
+                            the track had no height and the bar never showed. */}
+                        <Box sx={{ width: '100%', height: 6, bgcolor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
                           <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#f87171' }} />
                         </Box>
                       </Box>
@@ -1504,9 +1540,10 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                         <ReBarChart data={advancedStats.tagChartData} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
                           <XAxis type="number" hide domain={[0, 100]} />
                           <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
-                          <ReTooltip 
+                          <ReTooltip
+                            cursor={BAR_CURSOR}
                             formatter={(val, name, props) => [`${val}% (${props.payload.total} total)`, 'Accuracy']}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                            contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
                           />
                           <Bar dataKey="accuracy" radius={[0, 4, 4, 0]}>
                             {advancedStats.tagChartData.map((entry, index) => (
@@ -1536,8 +1573,9 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                     <ReBarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
                       <XAxis type="number" hide />
                       <YAxis dataKey="subject" type="category" width={100} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
-                      <ReTooltip 
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                      <ReTooltip
+                        cursor={BAR_CURSOR}
+                        contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
                         formatter={(val) => [val, 'Points']}
                       />
                       <Bar dataKey="A" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>
@@ -1561,13 +1599,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                         <Radar name="Cohort avg" dataKey="cohort" stroke="#94a3b8" fill="none" strokeDasharray="5 4" isAnimationActive={false} />
                       )}
                       <Legend wrapperStyle={{ fontSize: 11, color: '#6b7280' }} />
-                      <ReTooltip 
-                        contentStyle={{
-                          backgroundColor: 'rgba(6,30,18,0.95)', border: '1px solid rgba(232,184,109,0.2)',
-                          borderRadius: 12, color: '#111827', fontSize: 13, backdropFilter: 'blur(10px)'
-                        }}
-                        itemStyle={{ color: '#111827' }}
-                      />
+                      <ReTooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </Box>
@@ -1639,7 +1671,8 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                       <XAxis dataKey="q" tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} interval="preserveStartEnd" />
                       <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} />
                       <ReTooltip
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                        cursor={BAR_CURSOR}
+                        contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL}
                         formatter={(val, name) => [`${val}s`, name === 'yours' ? 'This attempt' : 'Cohort avg']}
                       />
                       <Bar dataKey="yours" fill="#60a5fa" radius={[3, 3, 0, 0]} maxBarSize={18} name="yours" />
@@ -1760,7 +1793,7 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
                                     {opt.text || (opt.imageUrl ? '(image option above)' : '—')}
                                   </Typography>
                                   {isPick && (
-                                    <Chip label="your pick" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: isKey ? 'rgba(52,211,153,0.2)' : 'rgba(96,165,250,0.2)', color: isKey ? '#065f46' : '#1d4ed8' }} />
+                                    <Chip label="learner's pick" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: isKey ? 'rgba(52,211,153,0.2)' : 'rgba(96,165,250,0.2)', color: isKey ? '#065f46' : '#1d4ed8' }} />
                                   )}
                                   {isKey && !isPick && (
                                     <Chip label="key" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: 'rgba(52,211,153,0.2)', color: '#065f46' }} />
@@ -1896,9 +1929,16 @@ function ResultDetailsDialog({ open, onClose, result, test, cohort, rank }) {
         )}
       </DialogContent>
       <DialogActions sx={{ borderTop: '1px solid #f3f4f6', p: { xs: 2, md: 3 }, display: 'flex', justifyContent: 'space-between', bgcolor: '#f9fafb', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px' }}>
-        <Button onClick={handleDownloadPdf} disabled={isExporting} variant="outlined" startIcon={isExporting ? <CircularProgress size={16} /> : <PictureAsPdf />} sx={{ color: '#10b981', borderColor: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' } }}>
-          {isExporting ? 'Building PDF...' : 'Download Report (PDF)'}
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          <Button onClick={handleDownloadPdf} disabled={isExporting} variant="outlined" startIcon={isExporting ? <CircularProgress size={16} /> : <PictureAsPdf />} sx={{ color: INK.green, borderColor: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' } }}>
+            {isExporting ? 'Building PDF...' : 'Download Report (PDF)'}
+          </Button>
+          {exportError && (
+            <Typography role="alert" sx={{ fontSize: '0.8rem', color: INK.red, fontWeight: 600 }}>
+              {exportError}
+            </Typography>
+          )}
+        </Box>
         <Button onClick={onClose} variant="contained" sx={{ bgcolor: '#111827', color: 'white', '&:hover': { bgcolor: '#374151' } }}>Close</Button>
       </DialogActions>
     </Dialog>
@@ -2227,6 +2267,35 @@ export default function TestAnalytics() {
     [detailAnalytics],
   );
 
+  /* ─── Cohort figures for the open report ────────────────────────────
+     The report compares a learner against everyone else who sat the same
+     test. That comparison used to come only from the per-test panel, so a
+     report opened from "All Tests" had no cohort averages, no option
+     distribution and no standing chart. Load that test's aggregates on open
+     (sharing the same cache) when the panel doesn't already hold them. */
+  const [viewCohort, setViewCohort] = useState(null);
+  useEffect(() => {
+    const slug = viewResult?.testSlug;
+    if (!slug) { setViewCohort(null); return undefined; }
+    if (detailAnalytics?.test?.slug === slug) { setViewCohort(detailAnalytics); return undefined; }
+    if (detailCache.current[slug]) { setViewCohort(detailCache.current[slug]); return undefined; }
+    let cancelled = false;
+    setViewCohort(null);
+    adminGetTestAnalyticsBySlug(slug)
+      .then((res) => {
+        if (cancelled) return;
+        const data = Array.isArray(res) ? res : res ?? null;
+        detailCache.current[slug] = data;
+        setViewCohort(data);
+      })
+      .catch((err) => {
+        // The report still renders from the attempt itself; only the cohort
+        // comparison is missing.
+        if (!cancelled) logApiFailure('load cohort for report', err);
+      });
+    return () => { cancelled = true; };
+  }, [viewResult, detailAnalytics]);
+
   /* ─── Chart interaction ──────────────────────────────────────────── */
   const handlePieClick = (data) => {
     if (recommendationFilter === data.name) {
@@ -2496,8 +2565,8 @@ export default function TestAnalytics() {
                   <Grid item xs={12} md={6}>
                     <Card sx={{ bgcolor: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '16px' }}>
                       <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                          <Typography variant="h7" sx={{ color: '#111827', fontWeight: 700 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+                          <Typography component="h3" sx={{ ...CARD_TITLE_SX, mb: 0 }}>
                             Completion Funnel
                           </Typography>
                           {detailAnalytics.biggestDropOff && (
@@ -2508,11 +2577,11 @@ export default function TestAnalytics() {
                         </Box>
                         <Box sx={{ height: 220 }}>
                           <ResponsiveContainer width="100%" height="100%">
-                            <ReBarChart data={detailAnalytics.dropOffCurve.map((pct, i) => ({ question: `Q${i + 1}`, reached: pct }))} margin={{ top: 10, right: 10, bottom: 40, left: 50 }}>
+                            <ReBarChart data={detailAnalytics.dropOffCurve.map((pct, i) => ({ question: `Q${i + 1}`, reached: pct }))} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
                               <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
                               <XAxis dataKey="question" tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} tickMargin={8} interval="preserveStartEnd" />
                               <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} tickMargin={6} tickFormatter={(v) => v + '%'} />
-                              <ReTooltip contentStyle={{ backgroundColor: 'rgba(6,30,18,0.95)', border: '1px solid rgba(232,184,109,0.2)', borderRadius: 12, color: '#111827', fontSize: 13, backdropFilter: 'blur(10px)' }} itemStyle={{ color: '#111827' }} formatter={(value) => [`${value}% reached`, 'Users'] } />
+                              <ReTooltip cursor={BAR_CURSOR} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL} formatter={(value) => [`${value}% reached`, 'Users'] } />
                               <Bar dataKey="reached" fill="#e8b86d" radius={[4, 4, 0, 0]} maxBarSize={40} name="Reached" />
                             </ReBarChart>
                           </ResponsiveContainer>
@@ -2529,7 +2598,7 @@ export default function TestAnalytics() {
                     <Grid item xs={12} md={6}>
                       <Card sx={{ bgcolor: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '16px' }}>
                         <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h7" sx={{ color: '#111827', mb: 3, fontWeight: 700 }}>
+                          <Typography component="h3" sx={CARD_TITLE_SX}>
                             Per-Question Accuracy
                           </Typography>
                           <Box sx={{ height: 220 }}>
@@ -2540,11 +2609,11 @@ export default function TestAnalytics() {
                                 question: `Q${q.index + 1}`,
                                 accuracy: q.correctPct ?? 0,
                                 difficulty: q.difficulty,
-                              }))} margin={{ top: 10, right: 10, bottom: 40, left: 50 }}>
+                              }))} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
                                 <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
                                 <XAxis dataKey="question" tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} tickMargin={8} interval="preserveStartEnd" />
                                 <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} tickMargin={6} tickFormatter={(v) => v + '%'} domain={[0, 100]} />
-                                <ReTooltip contentStyle={{ backgroundColor: 'rgba(6,30,18,0.95)', border: '1px solid rgba(232,184,109,0.2)', borderRadius: 12, color: '#111827', fontSize: 13, backdropFilter: 'blur(10px)' }} itemStyle={{ color: '#111827' }} formatter={(value) => [`${value}% correct`, 'Accuracy'] } />
+                                <ReTooltip cursor={BAR_CURSOR} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM} labelStyle={TOOLTIP_LABEL} formatter={(value) => [`${value}% correct`, 'Accuracy'] } />
                                 <Bar dataKey="accuracy" radius={[4, 4, 0, 0]} maxBarSize={40} name="Accuracy">
                                   {keyedQuestions.map((q, i) => (
                                     <Cell key={i} fill={q.difficulty === 'advanced' ? '#f87171' : q.difficulty === 'beginner' ? '#34d399' : '#fbbf24'} />
@@ -2583,7 +2652,7 @@ export default function TestAnalytics() {
                     <Grid item xs={12} md={4}>
                       <Card sx={{ bgcolor: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '16px', height: '100%' }}>
                         <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h7" sx={{ color: '#111827', fontWeight: 700, mb: 2.5, display: 'block' }}>
+                          <Typography component="h3" sx={CARD_TITLE_SX}>
                             Difficulty Mix vs Accuracy
                           </Typography>
                           {(detailAnalytics.difficultyBreakdown || []).map((tier) => (
@@ -2615,7 +2684,7 @@ export default function TestAnalytics() {
                     <Grid item xs={12} md={8}>
                       <Card sx={{ bgcolor: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '16px' }}>
                         <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h7" sx={{ color: '#111827', fontWeight: 700, mb: 2 }}>
+                          <Typography component="h3" sx={CARD_TITLE_SX}>
                             Item Analysis
                           </Typography>
                           <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
@@ -2638,7 +2707,7 @@ export default function TestAnalytics() {
                                         sx={{
                                           height: 18, fontSize: '0.62rem', fontWeight: 700, textTransform: 'capitalize',
                                           bgcolor: q.difficulty === 'advanced' ? 'rgba(248,113,113,0.15)' : q.difficulty === 'beginner' ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.15)',
-                                          color: q.difficulty === 'advanced' ? '#f87171' : q.difficulty === 'beginner' ? '#34d399' : '#fbbf24',
+                                          color: q.difficulty === 'advanced' ? INK.red : q.difficulty === 'beginner' ? INK.green : INK.amber,
                                         }}
                                       />
                                     </TableCell>
@@ -2648,7 +2717,7 @@ export default function TestAnalytics() {
                                     </TableCell>
                                     <TableCell sx={{
                                       fontSize: '0.72rem', fontWeight: 700, borderColor: '#f3f4f6',
-                                      color: q.correctPct == null ? 'rgba(0, 0, 0, 0.35)' : q.correctPct < 40 ? '#f87171' : q.correctPct < 70 ? '#fbbf24' : '#34d399',
+                                      color: q.correctPct == null ? 'rgba(0, 0, 0, 0.45)' : q.correctPct < 40 ? INK.red : q.correctPct < 70 ? INK.amber : INK.green,
                                     }}>
                                       {/* A keyed question nobody has answered yet used to
                                           read "not keyed" here — it has a key, it just has
@@ -2681,8 +2750,8 @@ export default function TestAnalytics() {
                   <Grid item xs={12} md={6}>
                     <Card sx={{ bgcolor: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '16px' }}>
                       <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                          <Typography variant="h7" sx={{ color: '#111827', fontWeight: 700 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+                          <Typography component="h3" sx={{ ...CARD_TITLE_SX, mb: 0 }}>
                             Recommendation Distribution
                           </Typography>
                           <Tooltip title="Click a segment to filter results">
@@ -2703,26 +2772,38 @@ export default function TestAnalytics() {
                                   cx="50%" cy="50%" labelLine={false}
                                   innerRadius={55} outerRadius={92} paddingAngle={2}
                                   dataKey="value" nameKey="name"
-                                  label={({ name, percent }) => `${name} (${(percent*100).toFixed(0)}%)`}
-                                  style={{ fontSize: 11, fill: '#6b7280', fontWeight: 'bold', cursor: 'pointer' }}
+                                  /* Label styling lives on the label itself. A
+                                     `style={{ fill }}` on <Pie> is passed to every
+                                     slice in Recharts 3, where the CSS fill beat
+                                     each <Cell> colour and the pie drew one grey. */
+                                  label={({ name, percent, x, y, textAnchor }) => (
+                                    <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central" fill="#4b5563" fontSize={11} fontWeight={700}>
+                                      {`${name} (${(percent * 100).toFixed(0)}%)`}
+                                    </text>
+                                  )}
+                                  style={{ cursor: 'pointer' }}
                                 >
-                                  {Object.entries(detailAnalytics.recommendationBreakdown).map((_, i) => (
-                                    <Cell 
-                                      key={i} 
-                                      fill={COLORS[i % COLORS.length]} 
-                                      stroke={recommendationFilter === Object.keys(detailAnalytics.recommendationBreakdown)[i] ? '#ffffff' : '#0a2e1d'} 
-                                      strokeWidth={recommendationFilter === Object.keys(detailAnalytics.recommendationBreakdown)[i] ? 3 : 2} 
-                                    />
-                                  ))}
+                                  {/* The selected slice used a white outline on a
+                                      white card, so the active filter was
+                                      invisible. Selected: dark outline; the rest
+                                      fade back while a filter is on. */}
+                                  {Object.keys(detailAnalytics.recommendationBreakdown).map((name, i) => {
+                                    const selected = recommendationFilter === name;
+                                    return (
+                                      <Cell
+                                        key={name}
+                                        fill={COLORS[i % COLORS.length]}
+                                        fillOpacity={recommendationFilter && !selected ? 0.35 : 1}
+                                        stroke={selected ? '#111827' : '#ffffff'}
+                                        strokeWidth={selected ? 3 : 2}
+                                      />
+                                    );
+                                  })}
                                 </Pie>
                                 <ReTooltip
-                                  cursor={{ fill: 'rgba(0,0,0,0.03)' }}
-                                  contentStyle={{
-                                    backgroundColor: 'rgba(6,30,18,0.95)', border: '1px solid rgba(232,184,109,0.2)',
-                                    borderRadius: 12, color: '#111827', fontSize: 13, backdropFilter: 'blur(10px)',
-                                    boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)',
-                                  }}
-                                  itemStyle={{ color: '#111827' }}
+                                  contentStyle={TOOLTIP_STYLE}
+                                  itemStyle={TOOLTIP_ITEM}
+                                  labelStyle={TOOLTIP_LABEL}
                                   formatter={(value) => [
                                     detailAnalytics.totalSubmissions > 0
                                       ? `${value} (${((value / detailAnalytics.totalSubmissions) * 100).toFixed(1)}%)`
@@ -2757,12 +2838,12 @@ export default function TestAnalytics() {
                   <Grid item xs={12} md={6}>
                     <Card sx={{ bgcolor: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '16px' }}>
                       <CardContent sx={{ p: 3 }}>
-                        <Typography variant="h7" sx={{ color: '#111827', mb: 3, fontWeight: 700 }}>
+                        <Typography component="h3" sx={CARD_TITLE_SX}>
                           {isScored ? 'Score Distribution' : 'Average Category Scores'}
                         </Typography>
                         <Box sx={{ height: 260 }}>
                           <ResponsiveContainer width="100%" height="100%">
-                            <ReBarChart data={rows} margin={{ top: 10, right: 10, bottom: 40, left: 50 }}>
+                            <ReBarChart data={rows} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
                               <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
                               <XAxis
                                 dataKey="name" tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}
@@ -2774,13 +2855,11 @@ export default function TestAnalytics() {
                                 tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.12)' }} tickMargin={6}
                               />
                               <ReTooltip
-                                cursor={{ fill: '#6b7280' }}
-                                contentStyle={{
-                                  backgroundColor: 'rgba(6,30,18,0.95)', border: '1px solid rgba(232,184,109,0.2)',
-                                  borderRadius: 12, color: '#111827', fontSize: 13, backdropFilter: 'blur(10px)',
-                                  boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)',
-                                }}
-                                itemStyle={{ color: '#111827' }}
+                                /* Was a solid grey block drawn over the hovered bar. */
+                                cursor={BAR_CURSOR}
+                                contentStyle={TOOLTIP_STYLE}
+                                itemStyle={TOOLTIP_ITEM}
+                                labelStyle={TOOLTIP_LABEL}
                                 formatter={(value) => [isScored ? `${value} attempts` : `${value} pts`, isScored ? 'Learners' : 'Average Score']}
                               />
                               <Bar dataKey="value" fill="#e8b86d" radius={[4, 4, 0, 0]} maxBarSize={50} />
@@ -2992,7 +3071,7 @@ export default function TestAnalytics() {
             {statusFilter === 'completed' ? 'Completed' : statusFilter === 'abandoned' ? 'Abandoned' : 'All attempts'}
           </Typography>
           {statusFilter === 'abandoned' && (
-            <Typography sx={{ color: 'rgba(251,191,36,0.85)', fontSize: '0.78rem' }}>
+            <Typography sx={{ color: INK.amber, fontSize: '0.78rem' }}>
               These learners opened the test and left before submitting — the shape of your drop-off.
             </Typography>
           )}
@@ -3092,12 +3171,14 @@ export default function TestAnalytics() {
                               sx={{
                                 height: 18, fontSize: '0.62rem', fontWeight: 700,
                                 bgcolor: row.passed ? 'rgba(52,211,153,0.18)' : 'rgba(248,113,113,0.18)',
-                                color: row.passed ? '#34d399' : '#f87171',
+                                color: row.passed ? INK.green : INK.red,
                               }}
                             />
                           )}
                         </Box>
-                      ) : row.topRecommendation ? (
+                      ) : row.status !== 'abandoned' && row.topRecommendation && row.topRecommendation !== 'N/A' ? (
+                        /* Abandoned attempts are stored with an 'N/A'
+                           placeholder, which read as a result. */
                         <Chip label={row.topRecommendation} size="small"
                           sx={{ bgcolor: 'rgba(232,184,109,0.18)', color: '#111827', border: '1px solid rgba(232,184,109,0.35)', fontWeight: 700 }} />
                       ) : '—'}
@@ -3107,11 +3188,11 @@ export default function TestAnalytics() {
                         <Chip
                           size="small"
                           label={row.lastQuestionIndex != null ? `Left at Q${row.lastQuestionIndex + 1}` : 'Abandoned'}
-                          sx={{ bgcolor: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)', fontWeight: 700 }}
+                          sx={{ bgcolor: 'rgba(251,191,36,0.15)', color: INK.amber, border: '1px solid rgba(251,191,36,0.4)', fontWeight: 700 }}
                         />
                       ) : (
                         <Chip size="small" label="Completed"
-                          sx={{ bgcolor: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)', fontWeight: 700 }} />
+                          sx={{ bgcolor: 'rgba(52,211,153,0.12)', color: INK.green, border: '1px solid rgba(52,211,153,0.35)', fontWeight: 700 }} />
                       )}
                     </TableCell>
                     <TableCell sx={{ color: '#111827', borderBottom: '1px solid rgba(0,0,0,0.03)', fontSize: '0.88rem' }}>
@@ -3195,7 +3276,7 @@ export default function TestAnalytics() {
         onClose={() => setViewResult(null)}
         result={viewResult}
         test={tests.find(t => t.slug === viewResult?.testSlug)}
-        cohort={detailAnalytics && selectedTest !== 'all' && detailAnalytics.test?.slug === viewResult?.testSlug ? detailAnalytics : null}
+        cohort={viewCohort?.test?.slug === viewResult?.testSlug ? viewCohort : null}
         rank={(() => {
           if (!viewResult || viewResult.percentage == null) return null;
           const peers = allResults.filter(r => r.testSlug === viewResult.testSlug && r.percentage != null && r.status !== 'abandoned');

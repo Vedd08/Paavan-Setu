@@ -11,7 +11,7 @@ import {
 } from 'framer-motion';
 import { brand } from '../../constants/brand';
 import { RevealText, CountUp, EASE_OUT } from './TextMotion';
-import campusStudy from '../../assets/hero/campus-study.webp';
+import studentsConfident from '../../assets/hero/students-confident.webp';
 import dmitFingerprint from '../../assets/hero/dmit-fingerprint.webp';
 import psychometricOnline from '../../assets/hero/psychometric-online.webp';
 import schoolClassroom from '../../assets/hero/school-classroom.webp';
@@ -36,8 +36,8 @@ import coverGanesha from '../../assets/myfriendganesha2.webp';
  *
  * Copy is drawn from the practice's own pages (Career Counselling, Books);
  * the closing chapter reads the CMS "Why us" heading, text and achievements.
- * Photographs: Pexels License (pexels.com/photo/<id>) — fingerprint 7479537,
- * online study 4308097; the book covers are the practice's own titles.
+ * Photographs: Pexels License (pexels.com/photo/<id>) — school students
+ * 30889597, fingerprint 7479537, online study 4308097; the book covers are the practice's own titles.
  */
 
 /** "2000+ Students Guided" → { value: '2000+', label: 'Students Guided' } */
@@ -61,7 +61,7 @@ function buildChapters({ whyTitle, whyDescription, achievements }) {
         'A written roadmap to follow afterwards',
       ],
       cta: { label: 'How counselling works', to: '/career-counselling' },
-      visual: { type: 'photo', src: campusStudy, alt: 'College students studying together on a campus lawn', position: '58% 55%' },
+      visual: { type: 'photo', src: studentsConfident, alt: 'Two school students in uniform standing with arms folded, smiling confidently', position: '50% 30%' },
     },
     {
       key: 'dmit',

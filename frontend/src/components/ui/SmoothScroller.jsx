@@ -1,8 +1,18 @@
 import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Lenis from 'lenis';
 
+/* Lenis takes over wheel events on the window, so any nested scroll container
+   (the admin sidebar, admin tables and dialogs) stops responding to the mouse
+   wheel. The admin panel has its own layout and no use for smooth scrolling,
+   so Lenis is only run on the public site. */
 export default function SmoothScroller({ children }) {
+  const { pathname } = useLocation();
+  const enabled = !pathname.startsWith('/admin');
+
   useEffect(() => {
+    if (!enabled) return undefined;
+
     let lenis = null;
     let rafId = null;
 
@@ -44,8 +54,7 @@ export default function SmoothScroller({ children }) {
         lenis = null;
       }
     };
-  }, []);
+  }, [enabled]);
 
   return <>{children}</>;
 }
-

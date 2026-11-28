@@ -320,11 +320,11 @@ export default function App() {
       <CssBaseline />
       <style>{SHARED_CSS}</style>
       <ErrorBoundary>
-        <SmoothScroller>
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <SmoothScroller>
             <AppContent />
-          </BrowserRouter>
-        </SmoothScroller>
+          </SmoothScroller>
+        </BrowserRouter>
       </ErrorBoundary>
     </ThemeProvider>
   );

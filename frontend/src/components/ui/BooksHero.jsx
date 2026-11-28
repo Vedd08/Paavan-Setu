@@ -2,10 +2,12 @@ import React, { useEffect } from 'react';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { motion, useAnimate, stagger, useSpring, useReducedMotion } from 'framer-motion';
 
-import bookRamayan from '../../assets/Ramayan2.jpeg';
-import bookClassroom from '../../assets/krishna_classroom.jpeg';
-import bookHanuman from '../../assets/Hanuman_chalisa2.jpeg';
-import bookGanesha from '../../assets/Myfriendganesha2.jpeg';
+// Gujarati editions — these are the practice's own books, so the banner shows
+// them rather than the English covers.
+import bookRamayan from '../../assets/Ramayan2.webp';
+import bookClassroom from '../../assets/krishna_pathsala2.webp';
+import bookHanuman from '../../assets/hanumanchalisa2.webp';
+import bookGanesha from '../../assets/myfriendganesha2.webp';
 
 const HERO_BOOKS = [
   {
